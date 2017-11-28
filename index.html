@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title></title>
+
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css" integrity="sha384-PsH8R72JQ3SOdhVi3uxftmaW6Vc51MKb0q5P2rRUpPvrszuE4W1povHYgTpBfshb" crossorigin="anonymous">
+    <link rel="icon" href="images/favicon.png">
+
+    <style type="text/css">
+        .field-name {
+            color: #e39619;
+            display: inline-block;
+        }
+
+        .flag-name {
+            color: #ff00ce;
+        }
+
+        pre {
+            background-color: #f8f9fa;
+        }
+
+        .avoid-split {
+            display: inline-block;
+        }
+        
+        BODY {
+            margin-top: 4rem;
+        }
+
+        *[id]:before {
+            display: block;
+            content: " ";
+            margin-top: -75px;
+            height: 75px;
+            visibility: hidden;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar fixed-top navbar-expand-md navbar-light bg-light">
+        <a class="navbar-brand" href="#">Squashfs Format</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+            <ul class="navbar-nav mr-auto">
+
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Sections</a>
+                    <div class="dropdown-menu" aria-labelledby="navbarDropdown">
+                        <a class="dropdown-item" href="#superblock">Superblock</a>
+                        <a class="dropdown-item" href="#superblock-flags">Superblock Flags</a>
+                        <a class="dropdown-item" href="#compression-options">Compression Options</a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item" href="#">Something else here</a>
+                    </div>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="https://github.com/plougher/squashfs-tools">Repo</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="https://www.kernel.org/doc/Documentation/filesystems/squashfs.txt">Kernel Docs</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div id="main-container" class="container">
+        <div class="row">
+            <div class="col">
+                <h1 class="display-3">Squashfs Binary Format</h1>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-12">
+                <p>
+                    A squashfs filesystem consists of a maximum of nine parts, packed together on a byte alignment:
+                </p>
+                <table class="table table-bordered">
+                    <tr>
+                        <td><a href="#superblock"><span class="float-lg-left">Superblock</span>
+                            <div class="text-muted d-block d-lg-inline-block float-none float-lg-right">Important information about the archive, including locations of other sections</div></a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><a href="#compression-options"><span class="float-lg-left">Compression Options</span>
+                            <div class="text-muted d-block d-lg-inline-block float-none float-lg-right">If non-default compression options have been used, then these are stored here.</div></a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><span class="float-lg-left">Datablocks &amp; Fragments</span>
+                            <div class="text-muted d-block d-lg-inline-block float-none float-lg-right">The contents of the files in the archive, split into blocks</div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><span class="float-lg-left">Inode Table</span>
+                            <div class="text-muted d-block d-lg-inline-block float-none float-lg-right">Metadata (ownership, permissions, etc) for items in the archive</div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><span class="float-lg-left">Directory Table</span>
+                            <div class="text-muted d-block d-lg-inline-block float-none float-lg-right">Directory listings, including file names, and references to inodes</div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><span class="float-lg-left">Fragment Table</span>
+                            <div class="text-muted d-block d-lg-inline-block float-none float-lg-right">Description of fragment locations within the Datablocks &amp; Fragments section</div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><span class="float-lg-left">Export Table</span>
+                            <div class="text-muted d-block d-lg-inline-block float-none float-lg-right">A mapping from inode numbers to disk locations, required for NFS export</div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><a href="#id-table"><span class="float-lg-left">UID/GID Lookup Table</span>
+                            <div class="text-muted d-block d-lg-inline-block float-none float-lg-right">A list of UID/GIDs. IDs are referenced as an index into this table</div></a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Xattr Table
+                            <div class="text-muted d-block d-lg-inline-block float-none float-lg-right">Xattrs for items in the archive</div>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            <div class="col">
+                <section id="superblock">
+                    <h1>The superblock</h1>
+                    <p>
+                        The superblock is the first section of a squashfs archive, and contains important information about the archive, including the locations of other sections of the archive.
+                    </p>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Offset</th>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>0x00</td>
+                                <td><code class="field-name">magic</code></td>
+                                <td>u32</td>
+                                <td>Must match the value of <code>0x73717368</code> to be considered a squashfs archive</td>
+                            </tr>
+                            <tr>
+                                <td>0x04</td>
+                                <td><code class="field-name">inode_count</code></td>
+                                <td>u32</td>
+                                <td>The number of inodes stored in the inode table</td>
+                            </tr>
+                            <tr>
+                                <td>0x08</td>
+                                <td><code class="field-name">creation_epoch_time</code></td>
+                                <td>i32</td>
+                                <td>The number of seconds (not counting leap seconds) since 00:00, Jan&nbsp;1&nbsp;1970 UTC when the archive was created (or last appended to)</td>
+                            </tr>
+                            <tr>
+                                <td>0x0C</td>
+                                <td><code class="field-name">block_size</code></td>
+                                <td>u32</td>
+                                <td>The size of a data block in bytes. Must be a power of two between 4096 and 1048576 (1 MiB)</td>
+                            </tr>
+                            <tr>
+                                <td>0x10</td>
+                                <td><code class="field-name">fragment_count</code></td>
+                                <td>u32</td>
+                                <td>The number of entries in the fragment table</td>
+                            </tr>
+                            <tr>
+                                <td>0x14</td>
+                                <td><code class="field-name">compression_id</code></td>
+                                <td>u16</td>
+                                <td>
+                                    <div class="row">
+                                        <div class="col-12 col-sm-6 col-md-3">1&nbsp;-&nbsp;GZIP</div>
+                                        <div class="col-12 col-sm-6 col-md-3">2&nbsp;-&nbsp;LZMA</div>
+                                        <div class="col-12 col-sm-6 col-md-3">3&nbsp;-&nbsp;LZO</div>
+                                        <div class="col-12 col-sm-6 col-md-3">4&nbsp;-&nbsp;XZ</div>
+                                        <div class="col-12 col-sm-6 col-md-3">5&nbsp;-&nbsp;LZ4</div>
+                                        <div class="col-12 col-sm-6 col-md-3">6&nbsp;-&nbsp;ZSTD</div>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>0x16</td>
+                                <td><code class="field-name">block_log</code></td>
+                                <td>u16</td>
+                                <td>The log<sub>2</sub> of <code class="field-name">block_size</code>. If <code class="field-name">block_size</code> and <code class="field-name">block_log</code> do not agree, the archive is considered corrupt</td>
+                            </tr>
+                            <tr>
+                                <td>0x18</td>
+                                <td><code class="field-name">flags</code></td>
+                                <td>u16<br/>(<a href="#superblock-flags">Flags</a>)</td>
+                                <td><em>See <a href="#superblock-flags">Superblock Flags</a></em></td>
+                            </tr>
+                            <tr>
+                                <td>0x1A</td>
+                                <td><code class="field-name">id_count</code></td>
+                                <td>u16</td>
+                                <td>The number of entries in the id lookup table</td>
+                            </tr>
+                            <tr>
+                                <td>0x1C</td>
+                                <td><code class="field-name">version_major</code></td>
+                                <td>u16</td>
+                                <td>The major version of the squashfs file format. Should always equal 4</td>
+                            </tr>
+                            <tr>
+                                <td>0x1E</td>
+                                <td><code class="field-name">version_minor</code></td>
+                                <td>u16</td>
+                                <td>The minor version of the squashfs file format. Should always equal 0</td>
+                            </tr>
+                            <tr>
+                                <td>0x20</td>
+                                <td><code class="field-name">root_inode_ref</code></td>
+                                <td>u64<br/>(<a href="#InodeRef">InodeRef</a>)</td>
+                                <td>A reference to the inode of the root directory of the archive</td>
+                            </tr>
+                            <tr>
+                                <td>0x28</td>
+                                <td><code class="field-name">bytes_used</code></td>
+                                <td>u64</td>
+                                <td>The number of bytes used by the archive. Because squashfs archives are often padded to 4KiB, this can often be less than the file size</td>
+                            </tr>
+                            <tr>
+                                <td>0x30</td>
+                                <td><code class="field-name">id_table_start</code></td>
+                                <td>u64</td>
+                                <td>The byte offset at which the id table starts</td>
+                            </tr>
+                            <tr>
+                                <td>0x38</td>
+                                <td><code class="field-name">xattr_id_table_start</code></td>
+                                <td>u64</td>
+                                <td>The byte offset at which the xattr id table starts</td>
+                            </tr>
+                            <tr>
+                                <td>0x40</td>
+                                <td><code class="field-name">inode_table_start</code></td>
+                                <td>u64</td>
+                                <td>The byte offset at which the inode table starts</td>
+                            </tr>
+                            <tr>
+                                <td>0x48</td>
+                                <td><code class="field-name">directory_table_start</code></td>
+                                <td>u64</td>
+                                <td>The byte offset at which the directory table starts</td>
+                            </tr>
+                            <tr>
+                                <td>0x50</td>
+                                <td><code class="field-name">fragment_table_start</code></td>
+                                <td>u64</td>
+                                <td>The byte offset at which the fragment table starts</td>
+                            </tr>
+                            <tr>
+                                <td>0x58</td>
+                                <td><code class="field-name">export_table_start</code></td>
+                                <td>u64</td>
+                                <td>The byte offset at which the export table starts</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+
+                <section id="superblock-flags">
+                    <h1>Superblock Flags</h1>
+
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Value</th>
+                                <th>Name</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>0x0001</td>
+                                <td><code class="flag-name">UNCOMPRESSED_INODES</code></td>
+                                <td>Inodes are stored uncompressed</td>
+                            </tr>
+                            <tr>
+                                <td>0x0002</td>
+                                <td><code class="flag-name">UNCOMPRESSED_DATA</code></td>
+                                <td>Data are stored uncompressed</td>
+                            </tr>
+                            <tr>
+                                <td>0x0004</td>
+                                <td><code class="flag-name">CHECK</code></td>
+                                <td>Unused in squashfs 4+. Should always be unset</td>
+                            </tr>
+                            <tr>
+                                <td>0x0008</td>
+                                <td><code class="flag-name">UNCOMPRESSED_FRAGMENTS</code></td>
+                                <td>Fragments are stored uncompressed</td>
+                            </tr>
+                            <tr>
+                                <td>0x0010</td>
+                                <td><code class="flag-name">NO_FRAGMENTS</code></td>
+                                <td>Fragments are not used. Files smaller than the block size are stored in a full block.</td>
+                            </tr>
+                            <tr>
+                                <td>0x0020</td>
+                                <td><code class="flag-name">ALWAYS_FRAGMENTS</code></td>
+                                <td>If the last block of a file is smaller than the block size, it will be instead stored as a fragment</td>
+                            </tr>
+                            <tr>
+                                <td>0x0040</td>
+                                <td><code class="flag-name">DUPLICATES</code></td>
+                                <td>Identical files are recognized, and stored only once</td>
+                            </tr>
+                            <tr>
+                                <td>0x0080</td>
+                                <td><code class="flag-name">EXPORTABLE</code></td>
+                                <td>Filesystem has support for export via NFS (The export table is populated)</td>
+                            </tr>
+                            <tr>
+                                <td>0x0100</td>
+                                <td><code class="flag-name">UNCOMPRESSED_XATTRS</code></td>
+                                <td>Xattrs are stored uncompressed</td>
+                            </tr>
+                            <tr>
+                                <td>0x0200</td>
+                                <td><code class="flag-name">NO_XATTRS</code></td>
+                                <td>Xattrs are not stored</td>
+                            </tr>
+                            <tr>
+                                <td>0x0400</td>
+                                <td><code class="flag-name">COMPRESSOR_OPTIONS</code></td>
+                                <td>The compression options section is present</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+
+                <section id="metadata-blocks">
+                    <h1>Metadata Blocks</h1>
+                    <p>
+                        Metadata blocks are compressed in 8KiB blocks. A metadata block is prefixed by a u16 header. The highest bit of the header is set if the block is stored uncompressed (this will happen if the block grew when compressed, or e.g. the <code class="flag-name">UNCOMPRESSED_INODES</code> superblock flag is set). The lower 15 bits specifies the size of the metadata block (not including the header) on disk.
+                    </p>
+                    <p>
+                        To read a metadata block, read a u16. If the highest bit is set (<code>size &amp; 0x8000 == 0x8000</code>) the following data is uncompressed. Mask out the highest bit to get the size of the block data on disk (this should always be &lt;= 8KiB). Read that many bytes. If the data is compressed, uncompress the data. In pseudocode:
+                    </p>
+                    <pre class="pre-scrollable pseudocode example"><code>header = read_u16(offset=offset)
+data_size = header &amp; 0x7FFF
+compressed = header &amp; 0x8000
+data = read(len=data_size)
+if(compressed) {
+    data = uncompress(data)
+}
+return data</code></pre>
+                    <p>
+                        Neither the size on disk, nor the compressed size should exceed 8KiB. The uncompressed size should always be equal to 8KiB, with the exception of the last metadata block of a section, which may have an uncompressed size less than 8KiB.
+                    </p>
+                </section>
+
+                <section id="compression-options">
+                    <h1>Compression Options</h1>
+                    <p>
+                        If the <code class="flag-name">COMPRESSOR_OPTIONS</code> flag is set, this section will be present immidately after the superblock, otherwise this section will not be present. If this section is present, it consists of a single <a href="#metadata-blocks">metadata block</a>, which is always uncompressed. The data is interpreted differently based on the compressor <span class="avoid-split">(<code class="field-name">compression_id</code>).</span>
+                    </p>
+                    <div class="row">
+                        <div class="col-12">
+                            <h4>LZMA</h4>
+                            <p>LZMA does not support any compression options</p>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <h4>GZIP</h4>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Offset</th>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>0x00</td>
+                                        <td>compression_level</td>
+                                        <td>i32</td>
+                                        <td>Should be in range 1&hellip;9 (inclusive). Defaults to 9.</td>
+                                    </tr>
+                                    <tr>
+                                        <td>0x04</td>
+                                        <td>window_size</td>
+                                        <td>i16</td>
+                                        <td>Should be in range 8&hellip;15 (inclusive) Defaults to 15.</td>
+                                    </tr>
+                                    <tr>
+                                        <td>0x08</td>
+                                        <td>strategies</td>
+                                        <td>i16</td>
+                                        <td>A bitfield describing the enabled strategies. If no flags are set, the default strategy is implicitly used. Flags:
+                                            <table class="table table-sm table-bordered font-weight-light">
+                                                <tbody>
+                                                    <tr>
+                                                        <td>0x01</td>
+                                                        <td>Default</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>0x02</td>
+                                                        <td>Filtered</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>0x04</td>
+                                                        <td>Huffman Only</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>0x08</td>
+                                                        <td>Run Length Encoded</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>0x10</td>
+                                                        <td>Fixed</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <h4>XZ</h4>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Offset</th>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>0x00</td>
+                                        <td>dictionary_size</td>
+                                        <td>i32</td>
+                                        <td>Should be > 8KiB, and must be either the sum of a power of two, or the sum of two sequential powers of two
+                                            <span class="avoid-split">(2<sup>n</sup> or 2<sup>n</sup>&nbsp;+&nbsp;2<sup>n+1</sup>)</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>0x04</td>
+                                        <td>executable_filters</td>
+                                        <td>i32</td>
+                                        <td>A bitfield describing the additional enabled filters attempted to better compress executable code. Flags:
+                                            <table class="table table-sm table-bordered font-weight-light">
+                                                <tbody>
+                                                    <tr>
+                                                        <td>0x01</td>
+                                                        <td>x86</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>0x02</td>
+                                                        <td>powerpc</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>0x04</td>
+                                                        <td>ia64</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>0x08</td>
+                                                        <td>arm</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>0x10</td>
+                                                        <td>armthumb</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>0x20</td>
+                                                        <td>sparc</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <h4>LZ4</h4>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Offset</th>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>0x00</td>
+                                        <td>version</td>
+                                        <td>i32</td>
+                                        <td>The only supported value is 1 (<code>LZ4_LEGACY</code>)</td>
+                                    </tr>
+                                    <tr>
+                                        <td>0x04</td>
+                                        <td>flags</td>
+                                        <td>i32</td>
+                                        <td>A bitfield describing the enabled LZ4 flags. There is currently only one possible flag:
+                                            <table class="table table-sm table-bordered font-weight-light">
+                                                <tbody>
+                                                    <tr>
+                                                        <td>0x01</td>
+                                                        <td>Use LZ4 High Compression(HC) mode</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <h4>ZSTD</h4>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Offset</th>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>0x00</td>
+                                        <td>compression_level</td>
+                                        <td>i32</td>
+                                        <td>Should be in range 1..22 (inclusive). The real maximum is the zstd defined <code>ZSTD_maxCLevel()</code></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="id-table">
+                    <h1>UID/GID Table</h1>
+                    <p>
+                        UID/GIDs are both stored as u32s. Both UIDs and GIDs are treated as IDs, if a file is owned by user 1000, and group 1000, the ID 1000 will be stored only once. UID/GIDs in inodes are stored as u16 indexes into this table (and thus, a maximum of 65535 unique IDs may be stored).
+                    </p>
+                    <p>
+                        This table is stored in two levels: The IDs are stored in <a href="#metadata-blocks">metadata blocks</a>, and the file offsets to these metadata blocks are stored at the offset specified by the <code class="field-name">id_table_start</code> field of the superblock.
+                    </p>
+                    <p>
+                        Each metadata block can store 2048 UID/GIDs (4 bytes per ID), so there will be <code>ceil(<span class="field-name">id_count</span> / 2048.0)</code> metadata blocks used for IDs (and the same number of u64 offsets stored at <code class="field-name">id_table_start</code>).
+                    </p>
+                    <p>
+                        To read the list of IDs, read <code>ceil(<span class="field-name">id_count</span> / 2048.0)</code> u64 offsets starting at
+                        <code class="field-name">id_table_start</code>, then read the metadata blocks at the offsets read.
+                    </p>
+                </section>
+            </div>
+        </div>
+
+    </div>
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.3/umd/popper.min.js" integrity="sha384-vFJXuSJphROIrBnz7yo7oB41mKfc8JzQZiCq4NCceLEaO4IHwicKwpJf9c9IpFgh" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/js/bootstrap.min.js" integrity="sha384-alpBpkh1PFOepccYVYDB4do5UnbKysX5WZXm3XxPqe5iKTfUKjNkCk9SaVuEZflJ" crossorigin="anonymous"></script>
+</body>
+
+</html>
