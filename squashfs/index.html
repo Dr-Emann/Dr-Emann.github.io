@@ -30,7 +30,7 @@
         }
         
         BODY {
-            margin-top: 4rem;
+            margin-top: 75px;
         }
 
         *[id]:before {
@@ -59,6 +59,8 @@
                         <a class="dropdown-item" href="#superblock">Superblock</a>
                         <a class="dropdown-item" href="#superblock-flags">Superblock Flags</a>
                         <a class="dropdown-item" href="#compression-options">Compression Options</a>
+                        <a class="dropdown-item" href="#fragment-table">Fragment Table</a>
+                        <a class="dropdown-item" href="#id-table">UID/GID Table</a>
                         <div class="dropdown-divider"></div>
                         <a class="dropdown-item" href="#">Something else here</a>
                     </div>
@@ -111,8 +113,9 @@
                         </td>
                     </tr>
                     <tr>
-                        <td><span class="float-lg-left">Fragment Table</span>
+                        <td><a href="#fragment-table"><span class="float-lg-left">Fragment Table</span>
                             <div class="text-muted d-block d-lg-inline-block float-none float-lg-right">Description of fragment locations within the Datablocks &amp; Fragments section</div>
+                            </a>
                         </td>
                     </tr>
                     <tr>
@@ -174,7 +177,7 @@
                             </tr>
                             <tr>
                                 <td>0x10</td>
-                                <td><code class="field-name">fragment_count</code></td>
+                                <td><code class="field-name">fragment_entry_count</code></td>
                                 <td>u32</td>
                                 <td>The number of entries in the fragment table</td>
                             </tr>
@@ -557,6 +560,62 @@ return data</code></pre>
                             </table>
                         </div>
                     </div>
+                </section>
+                
+                <section id="fragment-table">
+                    <h1>Fragment Table</h1>
+                    <p>
+                        Fragments are combined into fragment blocks of at most <code class="field-name">block_size</code> bytes long. This table describes the
+                        location and size of these fragment blocks, not the fragments within them. 
+                    </p>
+                    <h4>Fragment Block Entry</h4>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Offset</th>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>0x00</td>
+                                <td>start</td>
+                                <td>u64</td>
+                                <td>The offset within the archive where the fragment block starts</td>
+                            </tr>
+                            <tr>
+                                <td>0x08</td>
+                                <td>size</td>
+                                <td>u32</td>
+                                <td>This stores two pieces of information. If the block is uncompressed, the 0x1000000 (1&lt;&lt;24) bit wil be set. The remaining bits 
+                                    describe the size of the fragment block on disk. Because the max value of <code class="field-name">block_size</code> is
+                                    1 MiB (1&lt;&lt;20), and the size of a fragment block should be less than <code class="field-name">block_size</code>,
+                                    the uncompressed bit will never be set by the size.</td>
+                            </tr>
+                            <tr>
+                                <td>0x0C</td>
+                                <td>_unused</td>
+                                <td>u32</td>
+                                <td>This field is unused</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p>
+                        This table is stored in two levels: The fragment block entries are stored in <a href="#metadata-blocks">metadata blocks</a>, and the file offsets
+                        to these metadata blocks are stored at the offset specified by the <code class="field-name">fragment_table_start</code> field of the superblock.
+                    </p>
+                    <p>
+                        Each metadata block can store 512 fragment block entries (16 bytes per fragment block entry), so there will be
+                        <code>ceil(<span class="field-name">fragment_entry_count</span> / 512.0)</code> metadata blocks (and the same number of u64 offsets stored at
+                        <code class="field-name">fragment_table_start</code>)
+                    </p>
+                    <p>
+                        To read the list of fragment block entries, read <code>ceil(<span class="field-name">fragment_entry_count</span> / 512.0)</code> u64 offsets starting at
+                        <code class="field-name">fragment_table_start</code>, then read the metadata blocks at the offsets read, interpreting the data of the metadata blocks
+                        as a packed array of fragment block entries.
+                    </p>
                 </section>
 
                 <section id="id-table">
