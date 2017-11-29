@@ -290,7 +290,7 @@
                             <tr>
                                 <td>0x0001</td>
                                 <td><code class="flag-name">UNCOMPRESSED_INODES</code></td>
-                                <td>Inodes and the blocks in the UID/GID table are stored uncompressed</td>
+                                <td>Inodes are stored uncompressed. For backward compatibility reasons, UID/GIDs are also stored uncompressed.</td>
                             </tr>
                             <tr>
                                 <td>0x0002</td>
@@ -341,6 +341,13 @@
                                 <td>0x0400</td>
                                 <td><code class="flag-name">COMPRESSOR_OPTIONS</code></td>
                                 <td>The compression options section is present</td>
+                            </tr>
+                            <tr>
+                                <td>0x0800</td>
+                                <td><code class="flag-name">UNCOMPRESSED_IDS</code></td>
+                                <td>UID/GIDs are stored uncompressed. Note that the <code class="flag-name">UNCOMPRESSED_INODES</code> flag also has this effect.
+                                    If that flag is set, this flag has no effect. This flag is currently only available on master in git, no released version of
+                                    squashfs yet supports it.</td>
                             </tr>
                         </tbody>
                     </table>
