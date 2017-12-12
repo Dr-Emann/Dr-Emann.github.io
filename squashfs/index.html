@@ -367,7 +367,7 @@
                     <pre class="pre-scrollable pseudocode example"><code>header = read_u16(offset=offset)
 data_size = header &amp; 0x7FFF
 compressed = header &amp; 0x8000
-data = read(len=data_size)
+data = read(offset=offset+2, len=data_size)
 if(compressed) {
     data = uncompress(data)
 }
@@ -568,6 +568,20 @@ return data</code></pre>
                         Fragments are combined into fragment blocks of at most <code class="field-name">block_size</code> bytes long. This table describes the
                         location and size of these fragment blocks, not the fragments within them. 
                     </p>
+                    <p>
+                        This table is stored in two levels: The fragment block entries are stored in <a href="#metadata-blocks">metadata blocks</a>, and the file offsets
+                        to these metadata blocks are stored at the offset specified by the <code class="field-name">fragment_table_start</code> field of the superblock.
+                    </p>
+                    <p>
+                        Each metadata block can store 512 fragment block entries (16 bytes per fragment block entry), so there will be
+                        <code>ceil(<span class="field-name">fragment_entry_count</span> / 512.0)</code> metadata blocks (and the same number of u64 offsets stored at
+                        <code class="field-name">fragment_table_start</code>)
+                    </p>
+                    <p>
+                        To read the list of fragment block entries, read <code>ceil(<span class="field-name">fragment_entry_count</span> / 512.0)</code> u64 offsets starting at
+                        <code class="field-name">fragment_table_start</code>, then read the metadata blocks at the offsets read, interpreting the data of the metadata blocks
+                        as a packed array of fragment block entries.
+                    </p>
                     <h4>Fragment Block Entry</h4>
                     <table class="table table-sm">
                         <thead>
@@ -602,20 +616,6 @@ return data</code></pre>
                             </tr>
                         </tbody>
                     </table>
-                    <p>
-                        This table is stored in two levels: The fragment block entries are stored in <a href="#metadata-blocks">metadata blocks</a>, and the file offsets
-                        to these metadata blocks are stored at the offset specified by the <code class="field-name">fragment_table_start</code> field of the superblock.
-                    </p>
-                    <p>
-                        Each metadata block can store 512 fragment block entries (16 bytes per fragment block entry), so there will be
-                        <code>ceil(<span class="field-name">fragment_entry_count</span> / 512.0)</code> metadata blocks (and the same number of u64 offsets stored at
-                        <code class="field-name">fragment_table_start</code>)
-                    </p>
-                    <p>
-                        To read the list of fragment block entries, read <code>ceil(<span class="field-name">fragment_entry_count</span> / 512.0)</code> u64 offsets starting at
-                        <code class="field-name">fragment_table_start</code>, then read the metadata blocks at the offsets read, interpreting the data of the metadata blocks
-                        as a packed array of fragment block entries.
-                    </p>
                 </section>
 
                 <section id="id-table">
