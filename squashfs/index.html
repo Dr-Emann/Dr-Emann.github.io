@@ -103,8 +103,9 @@
                         </td>
                     </tr>
                     <tr>
-                        <td><span class="float-lg-left">Inode Table</span>
+                        <td><a href="#inode-table"><span class="float-lg-left">Inode Table</span>
                             <div class="text-muted d-block d-lg-inline-block float-none float-lg-right">Metadata (ownership, permissions, etc) for items in the archive</div>
+                            </a>
                         </td>
                     </tr>
                     <tr>
@@ -165,7 +166,7 @@
                             </tr>
                             <tr>
                                 <td>0x08</td>
-                                <td><code class="field-name">creation_epoch_time</code></td>
+                                <td><code class="field-name">modification_time</code></td>
                                 <td>i32</td>
                                 <td>The number of seconds (not counting leap seconds) since 00:00, Jan&nbsp;1&nbsp;1970 UTC when the archive was created (or last appended to)</td>
                             </tr>
@@ -555,6 +556,152 @@ return data</code></pre>
                                         <td>compression_level</td>
                                         <td>i32</td>
                                         <td>Should be in range 1..22 (inclusive). The real maximum is the zstd defined <code>ZSTD_maxCLevel()</code></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+                
+                <section id="inode-table">
+                    <h1>Inode Table</h1>
+                    <p>
+                        The inode table starts at <code class="field-name">inode_table_start</code> and ends at <code class="field-name">directory_table_start</code>. In this range are stored enough <a href="#metadata-blocks">metadata blocks</a> to contain all inodes. All metablocks in the table (except for the last block) should have an uncompressed size of 8KiB.
+                    </p>
+                    <p>
+                        Inodes are packed into metadata blocks. Inodes are not aligned to block boundaries, and can therefore span the boundary between metadata blocks. To maximise compression there are different inodes for each item type (regular file, directory, device, etc.), the inode contents and length varying with the type.
+                    </p>
+                    <p>
+                        To further maximise compression, inodes come in two flavors: simple inode types optimised for frequently occurring items, and extended inode types where extra information has to be stored.
+                    </p>
+                    <p>
+                        If the <code class="flag-name">UNCOMPRESSED_INODES</code> flag is set, all metadata blocks should stored uncompressed. If the flag is not set, metadata blocks will be stored compressed if compression decreases the size of the block as described in the <a href="#metadata-blocks">metadata block section</a>.
+                    </p>
+                    
+                    <h3 id="inode-references">Inode References</h3>
+                    <p>
+                        Entries in the Inode table are referenced (for example, in directory entries) with u64 values. The upper 16 bits are unused. The next 32 bits describe the index of the metadata block. The lower 16 bits describe the (uncompressed) offset within the metadata block where the inode <strong>begins</strong> (remember that an inode may straddle the border between two metadata blocks). For example, an inode reference with the value <code class="avoid-split">0x0000_000001FF_01A0</code> will be located in the metadata block at index <code>0x000001FF</code> (the 512th block), starting at the byte at index <code>0x01A0</code> (the 417th byte) when the block is uncompressed.
+                    </p>
+                    
+                    <h3 id="inode-header">Inode Header</h3>
+                    <p>
+                        All Inodes share a common header, which contains some common information, as well as describing the type of Inode which follows. This header has the following structure:
+                    </p>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Offset</th>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>0x00</td>
+                                <td>inode_type</td>
+                                <td>u16<br/>(<a href="#inode-types">InodeType</a>)</td>
+                                <td>The type of item described by the inode which follows this header.</td>
+                            </tr>
+                            <tr>
+                                <td>0x02</td>
+                                <td>permissions</td>
+                                <td>u16<br/>(<a href="#TODO-permissions-type">Permissions</a>)</td>
+                                <td>A bitmask representing the permissions for the item described by the inode. The values match with the permission values of <a href="http://pubs.opengroup.org/onlinepubs/7908799/xsh/sysstat.h.html">mode_t</a> (the mode bits, not the file type)</td>
+                            </tr>
+                            <tr>
+                                <td>0x04</td>
+                                <td>uid_idx</td>
+                                <td>u16</td>
+                                <td>The index of the user id in the <a href="#id-table">UID/GID Table</a></td>
+                            </tr>
+                            <tr>
+                                <td>0x06</td>
+                                <td>gid_idx</td>
+                                <td>u16</td>
+                                <td>The index of the group id in the <a href="#id-table">UID/GID Table</a></td>
+                            </tr>
+                            <tr>
+                                <td>0x08</td>
+                                <td>modified_time</td>
+                                <td>i32</td>
+                                <td>The number of seconds (not counting leap seconds) since 00:00, Jan&nbsp;1&nbsp;1970 UTC when the item described by the inode was last modified</td>
+                            </tr>
+                            <tr>
+                                <td>0x0C</td>
+                                <td>inode_number</td>
+                                <td>u32</td>
+                                <td>The position of this inode in the full list of inodes. Value should be in the range <span class="avoid-split"><code>[1, <span class="field-name">inode_count</span>]</code></span>(from the <a href="#superblock">superblock</a>) This can be treated as a unique identifier for this inode. This can be used as a key to recreate hard links: when processing the archive, remember the visited values of <code>inode_number</code>. If an inode number has already been visited, this inode is hardlinked</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h3 id="inode-types">Inode Types</h3>
+                    <p>
+                        There are seven types of inodes, and each type comes in two variants, a basic variant which is smaller and contains only the most-used properties, and an extended variant which has more properties, and will be used when those less used properties are required (e.g. xattrs)
+                    </p>
+                    <p>
+                        The value of <code class="field-name">inode_type</code> (in the inode header) can have any of the following values:
+                    </p>
+                    <div class="row">
+                        <div class="col-12 col-sm-6 col-lg-3">1&nbsp;-&nbsp;<a href="#inode-directory-basic">Basic Directory</a></div>
+                        <div class="col-12 col-sm-6 col-lg-3">2&nbsp;-&nbsp;<a href="#inode-file-basic">Basic File</a></div>
+                        <div class="col-12 col-sm-6 col-lg-3">3&nbsp;-&nbsp;<a href="#inode-symlink-basic">Basic Symlink</a></div>
+                        <div class="col-12 col-sm-6 col-lg-3">4&nbsp;-&nbsp;<a href="#inode-device-basic">Basic Block Device</a></div>
+                        <div class="col-12 col-sm-6 col-lg-3">5&nbsp;-&nbsp;<a href="#inode-device-basic">Basic Char Device</a></div>
+                        <div class="col-12 col-sm-6 col-lg-3">6&nbsp;-&nbsp;<a href="#inode-ipc-basic">Basic Fifo</a></div>
+                        <div class="col-12 col-sm-6 col-lg-3">7&nbsp;-&nbsp;<a href="#inode-ipc-basic">Basic Socket</a></div>
+                        <div class="col-12 col-sm-6 col-lg-3">8&nbsp;-&nbsp;<a href="#inode-directory-extended">Extended Directory</a></div>
+                        <div class="col-12 col-sm-6 col-lg-3">9&nbsp;-&nbsp;<a href="#inode-file-extended">Extended File</a></div>
+                        <div class="col-12 col-sm-6 col-lg-3">10&nbsp;-&nbsp;<a href="#inode-symlink-extended">Extended Symlink</a></div>
+                        <div class="col-12 col-sm-6 col-lg-3">11&nbsp;-&nbsp;<a href="#inode-device-extended">Extended Block Device</a></div>
+                        <div class="col-12 col-sm-6 col-lg-3">12&nbsp;-&nbsp;<a href="#inode-device-extended">Extended Char Device</a></div>
+                        <div class="col-12 col-sm-6 col-lg-3">13&nbsp;-&nbsp;<a href="#inode-ipc-extended">Extended Fifo</a></div>
+                        <div class="col-12 col-sm-6 col-lg-3">14&nbsp;-&nbsp;<a href="#inode-ipc-extended">Extended Socket</a></div>
+                    </div>
+                    <br/>
+                    <div class="row">
+                        <div id="inode-directory-basic" class="col-12 col-lg-6">
+                            <h5>Basic Directory</h5>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Offset</th>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>0x00</td>
+                                        <td>start_block</td>
+                                        <td>u32</td>
+                                        <td>The index of the block in the <a href="#directory-table">Directory Table</a> where the directory entry information starts</td>
+                                    </tr>
+                                    <tr>
+                                        <td>0x04</td>
+                                        <td>nlink</td>
+                                        <td>u32</td>
+                                        <td>The number of hard links to this directory</td>
+                                    </tr>
+                                    <tr>
+                                        <td>0x08</td>
+                                        <td>file_size</td>
+                                        <td>u16</td>
+                                        <td>TODO: Check</td>
+                                    </tr>
+                                    <tr>
+                                        <td>0x0A</td>
+                                        <td>offset</td>
+                                        <td>u16</td>
+                                        <td>The (uncompressed) offset within the block in the <a href="#directory-table">Directory Table</a> where the directory entry information starts</td>
+                                    </tr>
+                                    <tr>
+                                        <td>0x0C</td>
+                                        <td>parent_inode_number</td>
+                                        <td>u32</td>
+                                        <td>The <code class="field-name">inode_number</code> of the parent of this directory. If this is the root directory, this will  be 1</td>
                                     </tr>
                                 </tbody>
                             </table>
