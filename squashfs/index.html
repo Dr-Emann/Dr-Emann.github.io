@@ -265,70 +265,70 @@
                     <table class="table table-sm">
                         <thead>
                             <tr>
-                                <th>Value</th>
                                 <th>Name</th>
+                                <th>Value</th>
                                 <th>Description</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <td>0x0001</td>
                                 <td><code class="flag-name">UNCOMPRESSED_INODES</code></td>
+                                <td>0x0001</td>
                                 <td>Inodes are stored uncompressed. For backward compatibility reasons, UID/GIDs are also stored uncompressed.</td>
                             </tr>
                             <tr>
-                                <td>0x0002</td>
                                 <td><code class="flag-name">UNCOMPRESSED_DATA</code></td>
+                                <td>0x0002</td>
                                 <td>Data are stored uncompressed</td>
                             </tr>
                             <tr>
-                                <td>0x0004</td>
                                 <td><code class="flag-name">CHECK</code></td>
+                                <td>0x0004</td>
                                 <td>Unused in squashfs 4+. Should always be unset</td>
                             </tr>
                             <tr>
-                                <td>0x0008</td>
                                 <td><code class="flag-name">UNCOMPRESSED_FRAGMENTS</code></td>
+                                <td>0x0008</td>
                                 <td>Fragments are stored uncompressed</td>
                             </tr>
                             <tr>
-                                <td>0x0010</td>
                                 <td><code class="flag-name">NO_FRAGMENTS</code></td>
+                                <td>0x0010</td>
                                 <td>Fragments are not used. Files smaller than the block size are stored in a full block.</td>
                             </tr>
                             <tr>
-                                <td>0x0020</td>
                                 <td><code class="flag-name">ALWAYS_FRAGMENTS</code></td>
+                                <td>0x0020</td>
                                 <td>If the last block of a file is smaller than the block size, it will be instead stored as a fragment</td>
                             </tr>
                             <tr>
-                                <td>0x0040</td>
                                 <td><code class="flag-name">DUPLICATES</code></td>
+                                <td>0x0040</td>
                                 <td>Identical files are recognized, and stored only once</td>
                             </tr>
                             <tr>
-                                <td>0x0080</td>
                                 <td><code class="flag-name">EXPORTABLE</code></td>
+                                <td>0x0080</td>
                                 <td>Filesystem has support for export via NFS (The export table is populated)</td>
                             </tr>
                             <tr>
-                                <td>0x0100</td>
                                 <td><code class="flag-name">UNCOMPRESSED_XATTRS</code></td>
+                                <td>0x0100</td>
                                 <td>Xattrs are stored uncompressed</td>
                             </tr>
                             <tr>
-                                <td>0x0200</td>
                                 <td><code class="flag-name">NO_XATTRS</code></td>
+                                <td>0x0200</td>
                                 <td>Xattrs are not stored</td>
                             </tr>
                             <tr>
-                                <td>0x0400</td>
                                 <td><code class="flag-name">COMPRESSOR_OPTIONS</code></td>
+                                <td>0x0400</td>
                                 <td>The compression options section is present</td>
                             </tr>
                             <tr>
-                                <td>0x0800</td>
                                 <td><code class="flag-name">UNCOMPRESSED_IDS</code></td>
+                                <td>0x0800</td>
                                 <td>UID/GIDs are stored uncompressed. Note that the <code class="flag-name">UNCOMPRESSED_INODES</code> flag also has this effect.
                                     If that flag is set, this flag has no effect. This flag is currently only available on master in git, no released version of
                                     squashfs yet supports it.</td>
@@ -396,24 +396,24 @@ return data</code></pre>
                                             <table class="table table-sm table-bordered font-weight-light">
                                                 <tbody>
                                                     <tr>
-                                                        <td>0x01</td>
                                                         <td>Default</td>
+                                                        <td>0x01</td>
                                                     </tr>
                                                     <tr>
-                                                        <td>0x02</td>
                                                         <td>Filtered</td>
+                                                        <td>0x02</td>
                                                     </tr>
                                                     <tr>
-                                                        <td>0x04</td>
                                                         <td>Huffman Only</td>
+                                                        <td>0x04</td>
                                                     </tr>
                                                     <tr>
-                                                        <td>0x08</td>
                                                         <td>Run Length Encoded</td>
+                                                        <td>0x08</td>
                                                     </tr>
                                                     <tr>
-                                                        <td>0x10</td>
                                                         <td>Fixed</td>
+                                                        <td>0x10</td>
                                                     </tr>
                                                 </tbody>
                                             </table>
@@ -446,28 +446,28 @@ return data</code></pre>
                                             <table class="table table-sm table-bordered font-weight-light">
                                                 <tbody>
                                                     <tr>
-                                                        <td>0x01</td>
                                                         <td>x86</td>
+                                                        <td>0x01</td>
                                                     </tr>
                                                     <tr>
-                                                        <td>0x02</td>
                                                         <td>powerpc</td>
+                                                        <td>0x02</td>
                                                     </tr>
                                                     <tr>
-                                                        <td>0x04</td>
                                                         <td>ia64</td>
+                                                        <td>0x04</td>
                                                     </tr>
                                                     <tr>
-                                                        <td>0x08</td>
                                                         <td>arm</td>
+                                                        <td>0x08</td>
                                                     </tr>
                                                     <tr>
-                                                        <td>0x10</td>
                                                         <td>armthumb</td>
+                                                        <td>0x10</td>
                                                     </tr>
                                                     <tr>
-                                                        <td>0x20</td>
                                                         <td>sparc</td>
+                                                        <td>0x20</td>
                                                     </tr>
                                                 </tbody>
                                             </table>
@@ -499,8 +499,8 @@ return data</code></pre>
                                             <table class="table table-sm table-bordered font-weight-light">
                                                 <tbody>
                                                     <tr>
-                                                        <td>0x01</td>
                                                         <td>Use LZ4 High Compression(HC) mode</td>
+                                                        <td>0x01</td>
                                                     </tr>
                                                 </tbody>
                                             </table>
@@ -656,7 +656,7 @@ return data</code></pre>
                                     <tr>
                                         <td>parent_inode_number</td>
                                         <td>u32</td>
-                                        <td>The <code class="field-name">inode_number</code> of the parent of this directory. If this is the root directory, this will  be 1</td>
+                                        <td>The <code class="field-name">inode_number</code> of the parent of this directory. If this is the root directory, this will be 1</td>
                                     </tr>
                                 </tbody>
                             </table>
