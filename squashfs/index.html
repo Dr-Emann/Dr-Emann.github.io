@@ -145,7 +145,6 @@
                     <table class="table table-sm">
                         <thead>
                             <tr>
-                                <th>Offset</th>
                                 <th>Name</th>
                                 <th>Type</th>
                                 <th>Description</th>
@@ -153,37 +152,31 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td>0x00</td>
                                 <td><code class="field-name">magic</code></td>
                                 <td>u32</td>
                                 <td>Must match the value of <code>0x73717368</code> to be considered a squashfs archive</td>
                             </tr>
                             <tr>
-                                <td>0x04</td>
                                 <td><code class="field-name">inode_count</code></td>
                                 <td>u32</td>
                                 <td>The number of inodes stored in the inode table</td>
                             </tr>
                             <tr>
-                                <td>0x08</td>
                                 <td><code class="field-name">modification_time</code></td>
                                 <td>i32</td>
                                 <td>The number of seconds (not counting leap seconds) since 00:00, Jan&nbsp;1&nbsp;1970 UTC when the archive was created (or last appended to)</td>
                             </tr>
                             <tr>
-                                <td>0x0C</td>
                                 <td><code class="field-name">block_size</code></td>
                                 <td>u32</td>
                                 <td>The size of a data block in bytes. Must be a power of two between 4096 and 1048576 (1 MiB)</td>
                             </tr>
                             <tr>
-                                <td>0x10</td>
                                 <td><code class="field-name">fragment_entry_count</code></td>
                                 <td>u32</td>
                                 <td>The number of entries in the fragment table</td>
                             </tr>
                             <tr>
-                                <td>0x14</td>
                                 <td><code class="field-name">compression_id</code></td>
                                 <td>u16</td>
                                 <td>
@@ -198,79 +191,66 @@
                                 </td>
                             </tr>
                             <tr>
-                                <td>0x16</td>
                                 <td><code class="field-name">block_log</code></td>
                                 <td>u16</td>
                                 <td>The log<sub>2</sub> of <code class="field-name">block_size</code>. If <code class="field-name">block_size</code> and <code class="field-name">block_log</code> do not agree, the archive is considered corrupt</td>
                             </tr>
                             <tr>
-                                <td>0x18</td>
                                 <td><code class="field-name">flags</code></td>
                                 <td>u16<br/>(<a href="#superblock-flags">Flags</a>)</td>
                                 <td><em>See <a href="#superblock-flags">Superblock Flags</a></em></td>
                             </tr>
                             <tr>
-                                <td>0x1A</td>
                                 <td><code class="field-name">id_count</code></td>
                                 <td>u16</td>
                                 <td>The number of entries in the id lookup table</td>
                             </tr>
                             <tr>
-                                <td>0x1C</td>
                                 <td><code class="field-name">version_major</code></td>
                                 <td>u16</td>
                                 <td>The major version of the squashfs file format. Should always equal 4</td>
                             </tr>
                             <tr>
-                                <td>0x1E</td>
                                 <td><code class="field-name">version_minor</code></td>
                                 <td>u16</td>
                                 <td>The minor version of the squashfs file format. Should always equal 0</td>
                             </tr>
                             <tr>
-                                <td>0x20</td>
                                 <td><code class="field-name">root_inode_ref</code></td>
                                 <td>u64<br/>(<a href="#InodeRef">InodeRef</a>)</td>
                                 <td>A reference to the inode of the root directory of the archive</td>
                             </tr>
                             <tr>
-                                <td>0x28</td>
                                 <td><code class="field-name">bytes_used</code></td>
                                 <td>u64</td>
                                 <td>The number of bytes used by the archive. Because squashfs archives are often padded to 4KiB, this can often be less than the file size</td>
                             </tr>
                             <tr>
-                                <td>0x30</td>
                                 <td><code class="field-name">id_table_start</code></td>
                                 <td>u64</td>
                                 <td>The byte offset at which the id table starts</td>
                             </tr>
                             <tr>
-                                <td>0x38</td>
                                 <td><code class="field-name">xattr_id_table_start</code></td>
                                 <td>u64</td>
                                 <td>The byte offset at which the xattr id table starts</td>
                             </tr>
                             <tr>
-                                <td>0x40</td>
                                 <td><code class="field-name">inode_table_start</code></td>
                                 <td>u64</td>
                                 <td>The byte offset at which the inode table starts</td>
                             </tr>
                             <tr>
-                                <td>0x48</td>
                                 <td><code class="field-name">directory_table_start</code></td>
                                 <td>u64</td>
                                 <td>The byte offset at which the directory table starts</td>
                             </tr>
                             <tr>
-                                <td>0x50</td>
                                 <td><code class="field-name">fragment_table_start</code></td>
                                 <td>u64</td>
                                 <td>The byte offset at which the fragment table starts</td>
                             </tr>
                             <tr>
-                                <td>0x58</td>
                                 <td><code class="field-name">export_table_start</code></td>
                                 <td>u64</td>
                                 <td>The byte offset at which the export table starts</td>
@@ -393,7 +373,6 @@ return data</code></pre>
                             <table class="table table-sm">
                                 <thead>
                                     <tr>
-                                        <th>Offset</th>
                                         <th>Name</th>
                                         <th>Type</th>
                                         <th>Description</th>
@@ -401,19 +380,16 @@ return data</code></pre>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td>0x00</td>
                                         <td>compression_level</td>
                                         <td>i32</td>
                                         <td>Should be in range 1&hellip;9 (inclusive). Defaults to 9.</td>
                                     </tr>
                                     <tr>
-                                        <td>0x04</td>
                                         <td>window_size</td>
                                         <td>i16</td>
                                         <td>Should be in range 8&hellip;15 (inclusive) Defaults to 15.</td>
                                     </tr>
                                     <tr>
-                                        <td>0x08</td>
                                         <td>strategies</td>
                                         <td>i16</td>
                                         <td>A bitfield describing the enabled strategies. If no flags are set, the default strategy is implicitly used. Flags:
@@ -451,7 +427,6 @@ return data</code></pre>
                             <table class="table table-sm">
                                 <thead>
                                     <tr>
-                                        <th>Offset</th>
                                         <th>Name</th>
                                         <th>Type</th>
                                         <th>Description</th>
@@ -459,14 +434,12 @@ return data</code></pre>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td>0x00</td>
                                         <td>dictionary_size</td>
                                         <td>i32</td>
                                         <td>Should be > 8KiB, and must be either the sum of a power of two, or the sum of two sequential powers of two
                                             <span class="avoid-split">(2<sup>n</sup> or 2<sup>n</sup>&nbsp;+&nbsp;2<sup>n+1</sup>)</span></td>
                                     </tr>
                                     <tr>
-                                        <td>0x04</td>
                                         <td>executable_filters</td>
                                         <td>i32</td>
                                         <td>A bitfield describing the additional enabled filters attempted to better compress executable code. Flags:
@@ -508,7 +481,6 @@ return data</code></pre>
                             <table class="table table-sm">
                                 <thead>
                                     <tr>
-                                        <th>Offset</th>
                                         <th>Name</th>
                                         <th>Type</th>
                                         <th>Description</th>
@@ -516,13 +488,11 @@ return data</code></pre>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td>0x00</td>
                                         <td>version</td>
                                         <td>i32</td>
                                         <td>The only supported value is 1 (<code>LZ4_LEGACY</code>)</td>
                                     </tr>
                                     <tr>
-                                        <td>0x04</td>
                                         <td>flags</td>
                                         <td>i32</td>
                                         <td>A bitfield describing the enabled LZ4 flags. There is currently only one possible flag:
@@ -544,7 +514,6 @@ return data</code></pre>
                             <table class="table table-sm">
                                 <thead>
                                     <tr>
-                                        <th>Offset</th>
                                         <th>Name</th>
                                         <th>Type</th>
                                         <th>Description</th>
@@ -552,7 +521,6 @@ return data</code></pre>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td>0x00</td>
                                         <td>compression_level</td>
                                         <td>i32</td>
                                         <td>Should be in range 1..22 (inclusive). The real maximum is the zstd defined <code>ZSTD_maxCLevel()</code></td>
@@ -590,7 +558,6 @@ return data</code></pre>
                     <table class="table table-sm">
                         <thead>
                             <tr>
-                                <th>Offset</th>
                                 <th>Name</th>
                                 <th>Type</th>
                                 <th>Description</th>
@@ -598,37 +565,31 @@ return data</code></pre>
                         </thead>
                         <tbody>
                             <tr>
-                                <td>0x00</td>
                                 <td>inode_type</td>
                                 <td>u16<br/>(<a href="#inode-types">InodeType</a>)</td>
                                 <td>The type of item described by the inode which follows this header.</td>
                             </tr>
                             <tr>
-                                <td>0x02</td>
                                 <td>permissions</td>
                                 <td>u16<br/>(<a href="#TODO-permissions-type">Permissions</a>)</td>
                                 <td>A bitmask representing the permissions for the item described by the inode. The values match with the permission values of <a href="http://pubs.opengroup.org/onlinepubs/7908799/xsh/sysstat.h.html">mode_t</a> (the mode bits, not the file type)</td>
                             </tr>
                             <tr>
-                                <td>0x04</td>
                                 <td>uid_idx</td>
                                 <td>u16</td>
                                 <td>The index of the user id in the <a href="#id-table">UID/GID Table</a></td>
                             </tr>
                             <tr>
-                                <td>0x06</td>
                                 <td>gid_idx</td>
                                 <td>u16</td>
                                 <td>The index of the group id in the <a href="#id-table">UID/GID Table</a></td>
                             </tr>
                             <tr>
-                                <td>0x08</td>
                                 <td>modified_time</td>
                                 <td>i32</td>
                                 <td>The number of seconds (not counting leap seconds) since 00:00, Jan&nbsp;1&nbsp;1970 UTC when the item described by the inode was last modified</td>
                             </tr>
                             <tr>
-                                <td>0x0C</td>
                                 <td>inode_number</td>
                                 <td>u32</td>
                                 <td>The position of this inode in the full list of inodes. Value should be in the range <span class="avoid-split"><code>[1, <span class="field-name">inode_count</span>]</code></span>(from the <a href="#superblock">superblock</a>) This can be treated as a unique identifier for this inode. This can be used as a key to recreate hard links: when processing the archive, remember the visited values of <code>inode_number</code>. If an inode number has already been visited, this inode is hardlinked</td>
@@ -666,7 +627,6 @@ return data</code></pre>
                             <table class="table table-sm">
                                 <thead>
                                     <tr>
-                                        <th>Offset</th>
                                         <th>Name</th>
                                         <th>Type</th>
                                         <th>Description</th>
@@ -674,31 +634,26 @@ return data</code></pre>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td>0x00</td>
                                         <td>start_block</td>
                                         <td>u32</td>
                                         <td>The index of the block in the <a href="#directory-table">Directory Table</a> where the directory entry information starts</td>
                                     </tr>
                                     <tr>
-                                        <td>0x04</td>
                                         <td>nlink</td>
                                         <td>u32</td>
                                         <td>The number of hard links to this directory</td>
                                     </tr>
                                     <tr>
-                                        <td>0x08</td>
                                         <td>file_size</td>
                                         <td>u16</td>
                                         <td>TODO: Check</td>
                                     </tr>
                                     <tr>
-                                        <td>0x0A</td>
                                         <td>offset</td>
                                         <td>u16</td>
                                         <td>The (uncompressed) offset within the block in the <a href="#directory-table">Directory Table</a> where the directory entry information starts</td>
                                     </tr>
                                     <tr>
-                                        <td>0x0C</td>
                                         <td>parent_inode_number</td>
                                         <td>u32</td>
                                         <td>The <code class="field-name">inode_number</code> of the parent of this directory. If this is the root directory, this will  be 1</td>
@@ -733,7 +688,6 @@ return data</code></pre>
                     <table class="table table-sm">
                         <thead>
                             <tr>
-                                <th>Offset</th>
                                 <th>Name</th>
                                 <th>Type</th>
                                 <th>Description</th>
@@ -741,13 +695,11 @@ return data</code></pre>
                         </thead>
                         <tbody>
                             <tr>
-                                <td>0x00</td>
                                 <td>start</td>
                                 <td>u64</td>
                                 <td>The offset within the archive where the fragment block starts</td>
                             </tr>
                             <tr>
-                                <td>0x08</td>
                                 <td>size</td>
                                 <td>u32</td>
                                 <td>This stores two pieces of information. If the block is uncompressed, the 0x1000000 (1&lt;&lt;24) bit wil be set. The remaining bits 
@@ -756,7 +708,6 @@ return data</code></pre>
                                     the uncompressed bit will never be set by the size.</td>
                             </tr>
                             <tr>
-                                <td>0x0C</td>
                                 <td>_unused</td>
                                 <td>u32</td>
                                 <td>This field is unused</td>
