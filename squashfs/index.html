@@ -358,14 +358,6 @@ return data</code></pre>
                     </p>
                 </section>
                 
-                <section id="data-blocks">
-                    <h1 id="data-blocks">Data Blocks</h1>
-                    <p>
-                        TODO: More to say.
-                        The size of a data block is represented by a u32. If the <code>1 &lt;&lt; 24</code> bit is set, the data block is stored uncompressed.
-                    </p>
-                </section>
-
                 <section id="compression-options">
                     <h1>Compression Options</h1>
                     <p>
@@ -539,6 +531,21 @@ return data</code></pre>
                     </div>
                 </section>
                 
+                <section id="data-blocks">
+                    <h1>Datablocks and Fragments</h1>
+                    <p>
+                        Datablocks and fragments contain the data which is contained by the files in this archive. A single file's data is stored in a number of data blocks, which are stored sequentially in this section. Because blocks are stored sequentially, the inode for a file only needs to store the position of the first block, and the compressed sizes of each block. All data blocks must be of  size <code class="field-name">block_size</code>, unless fragments are not used and the file size is not equally divisible by <code class="field-name">block_size</code>.
+                    </p>
+                    <p>
+                        In addition to full data blocks, files can optionally end in a fragment, if fragments are enabled (<a href="#superblock-flags"><code class="flag-name">NO_FRAGMENTS</code></a> is not set). Fragments are combined into data blocks of at most size <code class="field-name">block_size</code>, and compressed as a single block (unless compression fails to shrink the fragment block).
+                    </p>
+                    <p>
+                        Datablocks do not have headers. Information about the size and position of datablocks is stored in the inode of the file to which the datablocks belong. Information about the size and position of fragment blocks are stored in the <a href="#fragment-table">Fragment Table</a>, and the size and offset of fragments within the blocks are stored in the inode of the file to which the fragment belongs.
+                    </p>
+                    <p>
+                        In both the fragment table, and file inodes, the size of a data block is represented by a u32. If the <code>1 &lt;&lt; 24</code> bit is set, the data block is stored uncompressed. The size of the block on disk is described by this u32 when this bit is masked out, though the value should always be less than the max block size (1MiB). Additionally, if this size is 0, no actual block is stored, but can be considered to uncompress to a stream of zeros of whatever size is needed (<code class="field-name">block_size</code> in most cases).
+                    </p>
+                </section>
                 <section id="inode-table">
                     <h1>Inode Table</h1>
                     <p>
