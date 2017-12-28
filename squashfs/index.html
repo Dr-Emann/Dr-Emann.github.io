@@ -615,7 +615,7 @@ return data</code></pre>
                     
                     <h3 id="inode-types">Inode Types</h3>
                     <p>
-                        There are seven types of inodes, and each type comes in two variants, a basic variant which is smaller and contains only the most-used properties, and an extended variant which has more properties, and will be used when those less used properties are required (e.g. xattrs)
+                        There are seven types of inodes, and each type comes in two variants, a basic variant which is smaller and contains only the most-used properties, and an extended variant which has more properties, and will be used when those less used properties are required (e.g. xattrs). Note that some inodes types are variable sized (symlinks targets, sizes of file data blocks, etc).
                     </p>
                     <p>
                         The value of <code class="field-name">inode_type</code> (in the <a href="#inode-header">inode header</a>) can have any of the following values:
