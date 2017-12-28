@@ -750,12 +750,56 @@ return data</code></pre>
                                     <tr>
                                         <td>fragment_offset</td>
                                         <td>u32</td>
-                                        <td>The (uncompressed) offset within the fragment data block where the fragment for this file. Information about the fragment can be found at <code class="field-name">fragment_block_index</code>. If this file does not end with a fragment, the value of this field is undefined (probably zero)</td>
+                                        <td>The (uncompressed) offset within the fragment data block where the fragment for this file. Information about the fragment can be found at <code class="field-name">fragment_block_index</code>. The size of the fragment can be found as <code><span class="field-name">file_size</span> % <span class="avoid-split">superblock.<span class="field-name">block_size</span></span></code> If this file does not end with a fragment, the value of this field is undefined (probably zero)</td>
                                     </tr>
                                     <tr>
                                         <td>file_size</td>
                                         <td>u32</td>
-                                        <td>The (uncompressed) size of this file. If this file has a fragment, the size of the fragment can be found as <code><span class="field-name">file_size</span> % <span class="avoid-split">superblock.<span class="field-name">block_size</span></span></code></td>
+                                        <td>The (uncompressed) size of this file</td>
+                                    </tr>
+                                    <tr>
+                                        <td>block_sizes</td>
+                                        <td>u32[]</td>
+                                        <td>A list of block sizes. If this file ends in a fragment, the size of this list is the number of <em>full</em> data blocks needed to store <code class="field-name">file_size</code> bytes. If this file does not have a fragment, the size of the list is the number of blocks needed to store <code class="field-name">file_size</code> bytes, rounded up. Each item in the list describes the (possibly compressed) size of a block. See <a href="#datablocks-and-fragments">datablocks &amp; fragments</a> for information about how to interpret this size.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <h5 id="inode-file-basic">Extended File</h5>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>blocks_start</td>
+                                        <td>u64</td>
+                                        <td>The offset from the start of the archive where the data blocks are stored</td>
+                                    </tr>
+                                    <tr>
+                                        <td>file_size</td>
+                                        <td>u64</td>
+                                        <td>The (uncompressed) size of this file</td>
+                                    </tr>
+                                    <tr>
+                                        <td>sparse</td>
+                                        <td>u64</td>
+                                        <td>The (uncompressed) size of this file</td>
+                                    </tr>
+                                    <tr>
+                                        <td>fragment_block_index</td>
+                                        <td>u32</td>
+                                        <td>The index of a fragment entry in the <a href="fragment-table">fragment table</a> which describes the data block the fragment of this file is stored in. If this file does not end with a fragment, this should be 0xFFFFFFFF</td>
+                                    </tr>
+                                    <tr>
+                                        <td>fragment_offset</td>
+                                        <td>u32</td>
+                                        <td>The (uncompressed) offset within the fragment data block where the fragment for this file. Information about the fragment can be found at <code class="field-name">fragment_block_index</code>. If this file does not end with a fragment, the value of this field is undefined (probably zero)</td>
                                     </tr>
                                     <tr>
                                         <td>block_sizes</td>
