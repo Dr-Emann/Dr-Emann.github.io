@@ -58,6 +58,7 @@
                     <div class="dropdown-menu" aria-labelledby="navbarDropdown">
                         <a class="dropdown-item" href="#superblock">Superblock</a>
                         <a class="dropdown-item" href="#compression-options">Compression Options</a>
+                        <a class="dropdown-item" href="#datablocks-and-fragments">Datablocks &amp; Fragments</a>
                         <a class="dropdown-item" href="#inode-table">Inode Table</a>
                         <a class="dropdown-item" href="#fragment-table">Fragment Table</a>
                         <a class="dropdown-item" href="#id-table">UID/GID Table</a>
@@ -98,7 +99,7 @@
                         </td>
                     </tr>
                     <tr>
-                        <td><span class="float-lg-left">Datablocks &amp; Fragments</span>
+                        <td><a href="#datablocks-and-fragments"><span class="float-lg-left">Datablocks &amp; Fragments</span></a>
                             <div class="text-muted d-block d-lg-inline-block float-none float-lg-right">The contents of the files in the archive, split into blocks</div>
                         </td>
                     </tr>
@@ -531,7 +532,7 @@ return data</code></pre>
                     </div>
                 </section>
                 
-                <section id="data-blocks">
+                <section id="datablocks-and-fragments">
                     <h1>Datablocks and Fragments</h1>
                     <p>
                         Datablocks and fragments contain the data which is contained by the files in this archive. A single file's data is stored in a number of data blocks, which are stored sequentially in this section. Because blocks are stored sequentially, the inode for a file only needs to store the position of the first block, and the compressed sizes of each block. All data blocks must be of  size <code class="field-name">block_size</code>, unless fragments are not used and the file size is not equally divisible by <code class="field-name">block_size</code>.
