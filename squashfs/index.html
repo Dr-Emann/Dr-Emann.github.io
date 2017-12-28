@@ -638,8 +638,8 @@ return data</code></pre>
                     </div>
                     <br/>
                     <div class="row">
-                        <div id="inode-directory-basic" class="col-12 col-lg-6">
-                            <h5>Basic Directory</h5>
+                        <div class="col-12 col-lg-6">
+                            <h5 id="inode-directory-basic">Basic Directory</h5>
                             <table class="table table-sm">
                                 <thead>
                                     <tr>
@@ -677,8 +677,8 @@ return data</code></pre>
                                 </tbody>
                             </table>
                         </div>
-                        <div id="inode-directory-extended" class="col-12 col-lg-6">
-                            <h5>Extended Directory</h5>
+                        <div class="col-12 col-lg-6">
+                            <h5 id="inode-directory-extended">Extended Directory</h5>
                             <table class="table table-sm">
                                 <thead>
                                     <tr>
@@ -726,8 +726,8 @@ return data</code></pre>
                                 </tbody>
                             </table>
                         </div>
-                        <div id="inode-file-basic" class="col-12 col-lg-6">
-                            <h5>Basic File</h5>
+                        <div class="col-12 col-lg-6">
+                            <h5 id="inode-file-basic">Basic File</h5>
                             <table class="table table-sm">
                                 <thead>
                                     <tr>
@@ -760,7 +760,36 @@ return data</code></pre>
                                     <tr>
                                         <td>block_sizes</td>
                                         <td>u32[]</td>
-                                        <td>A list of block sizes. If this file ends in a fragment, the size of this list is the number of <em>full</em> data blocks needed to store <code class="field-name">file_size</code> bytes. If this file does not have a fragment, the size of the list is the number of blocks needed to store <code class="field-name">file_size</code> bytes, rounded up. Each item in the list describes the (possibly compressed) size of a block. See <a href="#data-blocks">data blocks</a> for more info.</td>
+                                        <td>A list of block sizes. If this file ends in a fragment, the size of this list is the number of <em>full</em> data blocks needed to store <code class="field-name">file_size</code> bytes. If this file does not have a fragment, the size of the list is the number of blocks needed to store <code class="field-name">file_size</code> bytes, rounded up. Each item in the list describes the (possibly compressed) size of a block. See <a href="#datablocks-and-fragments">datablocks &amp; fragments</a> for information about how to interpret this size.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <h5 id="inode-symlink-basic">Basic Symlink</h5>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>nlink</td>
+                                        <td>u32</td>
+                                        <td>The number of hard links to this symlink</td>
+                                    </tr>
+                                    <tr>
+                                        <td>target_size</td>
+                                        <td>u32</td>
+                                        <td>The size in bytes of the <code class="field-name">target_path</code> this symlink points to</td>
+                                    </tr>
+                                    <tr>
+                                        <td>target_path</td>
+                                        <td>u8[]</td>
+                                        <td>The target path this symlink points to. This path is <code class="field-name">target_size</code> bytes long. There is no trailing null byte, and interior null bytes should not be allowed (however, this is currently not checked by unsquashfs)</td>
                                     </tr>
                                 </tbody>
                             </table>
