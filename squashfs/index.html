@@ -850,9 +850,6 @@ return data</code></pre>
                         </div>
                         <div class="col-12 col-lg-6">
                             <h5 id="inode-symlink-extended">Extended Symlink</h5>
-                            <p>
-                                An extended symlink inode is exactly the same as a basic symlink inode, with the addition of an xattr index
-                            </p>
                             <table class="table table-sm">
                                 <thead>
                                     <tr>
@@ -876,6 +873,59 @@ return data</code></pre>
                                         <td>target_path</td>
                                         <td>u8[]</td>
                                         <td>The target path this symlink points to. This path is <code class="field-name">target_size</code> bytes long. There is no trailing null byte, and interior null bytes should not be allowed (however, this is currently not checked by unsquashfs)</td>
+                                    </tr>
+                                    <tr>
+                                        <td>xattr_index</td>
+                                        <td>u32</td>
+                                        <td>A reference to inode information in the xattr table. TODO: More info after learning about the xattr table</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <h5 id="inode-device-basic">Basic Device (Block/Char)</h5>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>nlink</td>
+                                        <td>u32</td>
+                                        <td>The number of hard links to this device</td>
+                                    </tr>
+                                    <tr>
+                                        <td>device</td>
+                                        <td>u32</td>
+                                        <td>To extract the major device number, <code>(device &amp; 0xfff00) &gt;&gt; 8</code>. To extract the minor device number, use <code>(dev &amp; 0xff) | ((dev &gt;&gt; 12) &amp; 0xfff00)</code></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <h5 id="inode-device-extended">Extended Device (Block/Char)</h5>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>nlink</td>
+                                        <td>u32</td>
+                                        <td>The number of hard links to this device</td>
+                                    </tr>
+                                    <tr>
+                                        <td>device</td>
+                                        <td>u32</td>
+                                        <td>To extract the major device number, <code>(device &amp; 0xfff00) &gt;&gt; 8</code>. To extract the minor device number, use <code>(dev &amp; 0xff) | ((dev &gt;&gt; 12) &amp; 0xfff00)</code></td>
                                     </tr>
                                     <tr>
                                         <td>xattr_index</td>
