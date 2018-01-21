@@ -935,6 +935,49 @@ return data</code></pre>
                                 </tbody>
                             </table>
                         </div>
+                        <div class="col-12 col-lg-6">
+                            <h5 id="inode-ipc-basic">Basic IPC (Fifo/Socket)</h5>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>nlink</td>
+                                        <td>u32</td>
+                                        <td>The number of hard links to this ipc item</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <h5 id="inode-ipc-extended">Extended IPC (Fifo/Socket)</h5>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>nlink</td>
+                                        <td>u32</td>
+                                        <td>The number of hard links to this ipc item</td>
+                                    </tr>
+                                    <tr>
+                                        <td>xattr_index</td>
+                                        <td>u32</td>
+                                        <td>A reference to inode information in the xattr table. TODO: More info after learning about the xattr table</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </section>
                 
