@@ -28,7 +28,7 @@
         .avoid-split {
             display: inline-block;
         }
-        
+
         BODY {
             margin-top: 75px;
         }
@@ -40,6 +40,7 @@
             height: 75px;
             visibility: hidden;
         }
+
     </style>
 </head>
 
@@ -330,9 +331,7 @@
                             <tr>
                                 <td><code class="flag-name">UNCOMPRESSED_IDS</code></td>
                                 <td>0x0800</td>
-                                <td>UID/GIDs are stored uncompressed. Note that the <code class="flag-name">UNCOMPRESSED_INODES</code> flag also has this effect.
-                                    If that flag is set, this flag has no effect. This flag is currently only available on master in git, no released version of
-                                    squashfs yet supports it.</td>
+                                <td>UID/GIDs are stored uncompressed. Note that the <code class="flag-name">UNCOMPRESSED_INODES</code> flag also has this effect. If that flag is set, this flag has no effect. This flag is currently only available on master in git, no released version of squashfs yet supports it.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -358,7 +357,7 @@ return data</code></pre>
                         Neither the size on disk, nor the compressed size should exceed 8KiB. The uncompressed size should always be equal to 8KiB, with the exception of the last metadata block of a section, which may have an uncompressed size less than 8KiB.
                     </p>
                 </section>
-                
+
                 <section id="compression-options">
                     <h1>Compression Options</h1>
                     <p>
@@ -531,11 +530,11 @@ return data</code></pre>
                         </div>
                     </div>
                 </section>
-                
+
                 <section id="datablocks-and-fragments">
                     <h1>Datablocks and Fragments</h1>
                     <p>
-                        Datablocks and fragments contain the data which is contained by the files in this archive. A single file's data is stored in a number of data blocks, which are stored sequentially in this section. Because blocks are stored sequentially, the inode for a file only needs to store the position of the first block, and the compressed sizes of each block. All data blocks must be of  size <code class="field-name">block_size</code>, unless fragments are not used and the file size is not equally divisible by <code class="field-name">block_size</code>.
+                        Datablocks and fragments contain the data which is contained by the files in this archive. A single file's data is stored in a number of data blocks, which are stored sequentially in this section. Because blocks are stored sequentially, the inode for a file only needs to store the position of the first block, and the compressed sizes of each block. All data blocks must be of size <code class="field-name">block_size</code>, unless fragments are not used and the file size is not equally divisible by <code class="field-name">block_size</code>.
                     </p>
                     <p>
                         In addition to full data blocks, files can optionally end in a fragment, if fragments are enabled (<a href="#superblock-flags"><code class="flag-name">NO_FRAGMENTS</code></a> is not set). Fragments are combined into data blocks of at most size <code class="field-name">block_size</code>, and compressed as a single block (unless compression fails to shrink the fragment block).
@@ -561,12 +560,12 @@ return data</code></pre>
                     <p>
                         If the <code class="flag-name">UNCOMPRESSED_INODES</code> flag is set, all metadata blocks should stored uncompressed. If the flag is not set, metadata blocks will be stored compressed if compression decreases the size of the block as described in the <a href="#metadata-blocks">metadata block section</a>.
                     </p>
-                    
+
                     <h3 id="inode-references">Inode References</h3>
                     <p>
                         Entries in the Inode table are referenced (for example, in directory entries) with u64 values. The upper 16 bits are unused. The next 32 bits describe the index of the metadata block. The lower 16 bits describe the (uncompressed) offset within the metadata block where the inode <strong>begins</strong> (remember that an inode may straddle the border between two metadata blocks). For example, an inode reference with the value <code class="avoid-split">0x0000_000001FF_01A0</code> will be located in the metadata block at index <code>0x000001FF</code> (the 512th block), starting at the byte at index <code>0x01A0</code> (the 417th byte) when the block is uncompressed.
                     </p>
-                    
+
                     <h3 id="inode-header">Inode Header</h3>
                     <p>
                         All Inodes share a common header, which contains some common information, as well as describing the type of Inode which follows. This header has the following structure:
@@ -608,11 +607,12 @@ return data</code></pre>
                             <tr>
                                 <td>inode_number</td>
                                 <td>u32</td>
-                                <td>The position of this inode in the full list of inodes. Value should be in the range <span class="avoid-split"><code>[1, <span class="field-name">inode_count</span>]</code></span>(from the <a href="#superblock">superblock</a>) This can be treated as a unique identifier for this inode, and can be used as a key to recreate hard links: when processing the archive, remember the visited values of <code>inode_number</code>. If an inode number has already been visited, this inode is hardlinked</td>
+                                <td>The position of this inode in the full list of inodes. Value should be in the range <span class="avoid-split"><code>[1, <span class="field-name">inode_count</span>]</code>
+                                    </span>(from the <a href="#superblock">superblock</a>) This can be treated as a unique identifier for this inode, and can be used as a key to recreate hard links: when processing the archive, remember the visited values of <code>inode_number</code>. If an inode number has already been visited, this inode is hardlinked</td>
                             </tr>
                         </tbody>
                     </table>
-                    
+
                     <h3 id="inode-types">Inode Types</h3>
                     <p>
                         There are seven types of inodes, and each type comes in two variants, a basic variant which is smaller and contains only the most-used properties, and an extended variant which has more properties, and will be used when those less used properties are required (e.g. xattrs). Note that some inodes types are variable sized (symlinks targets, sizes of file data blocks, etc).
@@ -980,16 +980,14 @@ return data</code></pre>
                         </div>
                     </div>
                 </section>
-                
+
                 <section id="fragment-table">
                     <h1>Fragment Table</h1>
                     <p>
-                        Fragments are combined into fragment blocks of at most <code class="field-name">block_size</code> bytes long. This table describes the
-                        location and size of these fragment blocks, not the fragments within them. 
+                        Fragments are combined into fragment blocks of at most <code class="field-name">block_size</code> bytes long. This table describes the location and size of these fragment blocks, not the fragments within them.
                     </p>
                     <p>
-                        This table is stored in two levels: The fragment block entries are stored in <a href="#metadata-blocks">metadata blocks</a>, and the file offsets
-                        to these metadata blocks are stored at the offset specified by the <code class="field-name">fragment_table_start</code> field of the superblock.
+                        This table is stored in two levels: The fragment block entries are stored in <a href="#metadata-blocks">metadata blocks</a>, and the file offsets to these metadata blocks are stored at the offset specified by the <code class="field-name">fragment_table_start</code> field of the superblock.
                     </p>
                     <p>
                         Each metadata block can store 512 fragment block entries (16 bytes per fragment block entry), so there will be
@@ -998,8 +996,7 @@ return data</code></pre>
                     </p>
                     <p>
                         To read the list of fragment block entries, read <code>ceil(<span class="field-name">fragment_entry_count</span> / 512.0)</code> u64 offsets starting at
-                        <code class="field-name">fragment_table_start</code>, then read the metadata blocks at the offsets read, interpreting the data of the metadata blocks
-                        as a packed array of fragment block entries.
+                        <code class="field-name">fragment_table_start</code>, then read the metadata blocks at the offsets read, interpreting the data of the metadata blocks as a packed array of fragment block entries.
                     </p>
                     <h4>Fragment Block Entry</h4>
                     <table class="table table-sm">
@@ -1019,10 +1016,7 @@ return data</code></pre>
                             <tr>
                                 <td>size</td>
                                 <td>u32</td>
-                                <td>This stores two pieces of information. If the block is uncompressed, the 0x1000000 (1&lt;&lt;24) bit wil be set. The remaining bits 
-                                    describe the size of the fragment block on disk. Because the max value of <code class="field-name">block_size</code> is
-                                    1 MiB (1&lt;&lt;20), and the size of a fragment block should be less than <code class="field-name">block_size</code>,
-                                    the uncompressed bit will never be set by the size.</td>
+                                <td>This stores two pieces of information. If the block is uncompressed, the 0x1000000 (1&lt;&lt;24) bit wil be set. The remaining bits describe the size of the fragment block on disk. Because the max value of <code class="field-name">block_size</code> is 1 MiB (1&lt;&lt;20), and the size of a fragment block should be less than <code class="field-name">block_size</code>, the uncompressed bit will never be set by the size.</td>
                             </tr>
                             <tr>
                                 <td>_unused</td>
