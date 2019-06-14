@@ -649,12 +649,12 @@ return data</code></pre>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td>start_block</td>
+                                        <td>block_idx</td>
                                         <td>u32</td>
                                         <td>The index of the block in the <a href="#directory-table">Directory Table</a> where the directory entry information starts</td>
                                     </tr>
                                     <tr>
-                                        <td>nlink</td>
+                                        <td>hard_link_count</td>
                                         <td>u32</td>
                                         <td>The number of hard links to this directory</td>
                                     </tr>
@@ -664,7 +664,7 @@ return data</code></pre>
                                         <td>TODO: Check meaning</td>
                                     </tr>
                                     <tr>
-                                        <td>offset</td>
+                                        <td>block_offset</td>
                                         <td>u16</td>
                                         <td>The (uncompressed) offset within the block in the <a href="#directory-table">Directory Table</a> where the directory entry information starts</td>
                                     </tr>
@@ -688,7 +688,7 @@ return data</code></pre>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td>nlink</td>
+                                        <td>hard_link_count</td>
                                         <td>u32</td>
                                         <td>The number of hard links to this directory</td>
                                     </tr>
@@ -698,7 +698,7 @@ return data</code></pre>
                                         <td>TODO: Check meaning</td>
                                     </tr>
                                     <tr>
-                                        <td>start_block</td>
+                                        <td>block_idx</td>
                                         <td>u32</td>
                                         <td>The index of the block in the <a href="#directory-table">Directory Table</a> where the directory entry information starts</td>
                                     </tr>
@@ -713,12 +713,12 @@ return data</code></pre>
                                         <td>The number of directory indexes. TODO: More Info. May be related to exports?</td>
                                     </tr>
                                     <tr>
-                                        <td>offset</td>
+                                        <td>block_offset</td>
                                         <td>u16</td>
                                         <td>The (uncompressed) offset within the block in the <a href="#directory-table">Directory Table</a> where the directory entry information starts</td>
                                     </tr>
                                     <tr>
-                                        <td>xattr_index</td>
+                                        <td>xattr_idx</td>
                                         <td>u32</td>
                                         <td>A reference to inode information in the xattr table. TODO: More info after learning about the xattr table</td>
                                     </tr>
@@ -747,7 +747,7 @@ return data</code></pre>
                                         <td>The index of a fragment entry in the <a href="fragment-table">fragment table</a> which describes the data block the fragment of this file is stored in. If this file does not end with a fragment, this should be 0xFFFFFFFF</td>
                                     </tr>
                                     <tr>
-                                        <td>fragment_offset</td>
+                                        <td>block_offset</td>
                                         <td>u32</td>
                                         <td>The (uncompressed) offset within the fragment data block where the fragment for this file. Information about the fragment can be found at <code class="field-name">fragment_block_index</code>. The size of the fragment can be found as <code><span class="field-name">file_size</span> % <span class="avoid-split">superblock.<span class="field-name">block_size</span></span></code> If this file does not end with a fragment, the value of this field is undefined (probably zero)</td>
                                     </tr>
@@ -791,7 +791,7 @@ return data</code></pre>
                                         <td>TODO</td>
                                     </tr>
                                     <tr>
-                                        <td>nlink</td>
+                                        <td>hard_link_count</td>
                                         <td>u32</td>
                                         <td>The number of hard links to this directory</td>
                                     </tr>
@@ -801,12 +801,12 @@ return data</code></pre>
                                         <td>The index of a fragment entry in the <a href="fragment-table">fragment table</a> which describes the data block the fragment of this file is stored in. If this file does not end with a fragment, this should be 0xFFFFFFFF</td>
                                     </tr>
                                     <tr>
-                                        <td>fragment_offset</td>
+                                        <td>block_offset</td>
                                         <td>u32</td>
                                         <td>The (uncompressed) offset within the fragment data block where the fragment for this file. Information about the fragment can be found at <code class="field-name">fragment_block_index</code>. If this file does not end with a fragment, the value of this field is undefined (probably zero)</td>
                                     </tr>
                                     <tr>
-                                        <td>xattr_index</td>
+                                        <td>xattr_idx</td>
                                         <td>u32</td>
                                         <td>A reference to inode information in the xattr table. TODO: More info after learning about the xattr table</td>
                                     </tr>
@@ -830,7 +830,7 @@ return data</code></pre>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td>nlink</td>
+                                        <td>hard_link_count</td>
                                         <td>u32</td>
                                         <td>The number of hard links to this symlink</td>
                                     </tr>
@@ -859,7 +859,7 @@ return data</code></pre>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td>nlink</td>
+                                        <td>hard_link_count</td>
                                         <td>u32</td>
                                         <td>The number of hard links to this symlink</td>
                                     </tr>
@@ -874,7 +874,7 @@ return data</code></pre>
                                         <td>The target path this symlink points to. This path is <code class="field-name">target_size</code> bytes long. There is no trailing null byte, and interior null bytes should not be allowed (however, this is currently not checked by unsquashfs)</td>
                                     </tr>
                                     <tr>
-                                        <td>xattr_index</td>
+                                        <td>xattr_idx</td>
                                         <td>u32</td>
                                         <td>A reference to inode information in the xattr table. TODO: More info after learning about the xattr table</td>
                                     </tr>
@@ -893,7 +893,7 @@ return data</code></pre>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td>nlink</td>
+                                        <td>hard_link_count</td>
                                         <td>u32</td>
                                         <td>The number of hard links to this device</td>
                                     </tr>
@@ -917,7 +917,7 @@ return data</code></pre>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td>nlink</td>
+                                        <td>hard_link_count</td>
                                         <td>u32</td>
                                         <td>The number of hard links to this device</td>
                                     </tr>
@@ -927,7 +927,7 @@ return data</code></pre>
                                         <td>To extract the major device number, <code>(device &amp; 0xfff00) &gt;&gt; 8</code>. To extract the minor device number, use <code>(dev &amp; 0xff) | ((dev &gt;&gt; 12) &amp; 0xfff00)</code></td>
                                     </tr>
                                     <tr>
-                                        <td>xattr_index</td>
+                                        <td>xattr_idx</td>
                                         <td>u32</td>
                                         <td>A reference to inode information in the xattr table. TODO: More info after learning about the xattr table</td>
                                     </tr>
@@ -946,7 +946,7 @@ return data</code></pre>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td>nlink</td>
+                                        <td>hard_link_count</td>
                                         <td>u32</td>
                                         <td>The number of hard links to this ipc item</td>
                                     </tr>
@@ -965,12 +965,12 @@ return data</code></pre>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td>nlink</td>
+                                        <td>hard_link_count</td>
                                         <td>u32</td>
                                         <td>The number of hard links to this ipc item</td>
                                     </tr>
                                     <tr>
-                                        <td>xattr_index</td>
+                                        <td>xattr_idx</td>
                                         <td>u32</td>
                                         <td>A reference to inode information in the xattr table. TODO: More info after learning about the xattr table</td>
                                     </tr>
