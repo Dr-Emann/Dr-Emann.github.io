@@ -60,6 +60,7 @@
                         <a class="dropdown-item" href="#compression-options">Compression Options</a>
                         <a class="dropdown-item" href="#datablocks-and-fragments">Datablocks &amp; Fragments</a>
                         <a class="dropdown-item" href="#inode-table">Inode Table</a>
+                        <a class="dropdown-item" href="#directory-table">Directory Table</a>
                         <a class="dropdown-item" href="#fragment-table">Fragment Table</a>
                         <a class="dropdown-item" href="#id-table">UID/GID Table</a>
                         <div class="dropdown-divider"></div>
@@ -110,8 +111,9 @@
                         </td>
                     </tr>
                     <tr>
-                        <td><span class="float-lg-left">Directory Table</span>
+                        <td><a href="#directory-table"><span class="float-lg-left">Directory Table</span>
                             <div class="text-muted d-block d-lg-inline-block float-none float-lg-right">Directory listings, including file names, and references to inodes</div>
+                            </a>
                         </td>
                     </tr>
                     <tr>
@@ -787,7 +789,7 @@ return data</code></pre>
                                     <tr>
                                         <td>index</td>
                                         <td>dir_index_t[]</td>
-                                        <td>An index for faster lookup in the directory table</td>
+                                        <td>A list of <a href="#directory-index">directory index</a> entries for faster lookup in the directory table</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -1045,6 +1047,127 @@ return data</code></pre>
                             </table>
                         </div>
                     </div>
+                </section>
+
+                <section id="directory-table">
+                  <h1>Directory Table</h1>
+                    <p>
+                        For each directory inode, the directory table stores a list of all entries stored inside, with references back to the inodes that describe those entries.
+                    </p>
+                    <p>
+                        The entry list is self is sorted ASCIIbetically by entry name. To save space, a delta encoding is used to store the inode number, i.e. the list is preceeded by a header with a reference inode number and all entries store the difference to that. Furthermore, the header also includes the location of a meta data block that the inodes of all of the following entries are in. The entries just store an offset into the uncompressed metadata block.
+                    </p>
+                    <h4 id="directory-header">Directory Header</h4>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>count</td>
+                                <td>u32</td>
+                                <td>Number of entries following the header</td>
+                            </tr>
+                            <tr>
+                                <td>start</td>
+                                <td>u32</td>
+                                <td>The index of the block in the <a href="#inode-table">Inode Table</a> where the inodes is stored</td>
+                            </tr>
+                            <tr>
+                                <td>inode number</td>
+                                <td>u32</td>
+                                <td>An arbitrary inode number. The entries that follow store their inode number as a difference to this.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p>
+                        Every time, the inode block changes or the difference of the inode number cannot be encoded in 16 bits anymore, a new header is emitted.
+                    </p>
+                    <p>
+                        A header must not be followed by more than 256 entries. If there are more entries, a new header is emitted.
+                    </p>
+                    <h4 id="directory-entry">Directory Entry</h4>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>offset</td>
+                                <td>u16</td>
+                                <td>An offset into the uncompressed inode metadata block</td>
+                            </tr>
+                            <tr>
+                                <td>inode number</td>
+                                <td>i16</td>
+                                <td>The difference of this inode's number to the reference stored in the header</td>
+                            </tr>
+                            <tr>
+                                <td>type</td>
+                                <td>u16</td>
+                                <td>The <a href="#inode-types">inode type</a>. <b>For extended inodes, the corresponding basic type is stored here instead<b></td>
+                            </tr>
+                            <tr>
+                                <td>size</td>
+                                <td>u16</td>
+                                <td>The size of the entry name</td>
+                            </tr>
+                            <tr>
+                                <td>name</td>
+                                <td>u8[]</td>
+                                <td>The file name of the entry</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p>
+                      The <a href="#inode-directory-basic">basic</a> and <a href="#inode-directory-extended">extended</a> inode types both have a size field that stores the uncompressed size of all the directory entries (including all headers) belonging to the inode. This field is used to deduce if more data is following while iterating over directory entries, even without knowing how many headers and partial lists there will be.
+                    </p>
+                    <h4 id="directory-index">Directory Index</h4>
+                    <p>
+                      To speed up lookups on directories with lots of entries, the <a href="#inode-directory-extended">extended directory inode</a> can store an index table, holding the locations of all <a href="#directory-header">directory headers</a> and the name of the first entry after the header.
+                    </p>
+                    <p>
+                      To allow for fast lookups, a new <a href="#directory-header">directory header</a> should be emitted every time the entry list crosses a metadata block boundary.
+                    </p>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>index</td>
+                                <td>u32</td>
+                                <td>An offset into the uncompressed metadata block</td>
+                            </tr>
+                            <tr>
+                                <td>start</td>
+                                <td>u32</td>
+                                <td>Start offset of a directory table metadata block</td>
+                            </tr>
+                            <tr>
+                                <td>size</td>
+                                <td>u32</td>
+                                <td>The size of the entry name</td>
+                            </tr>
+                            <tr>
+                                <td>name</td>
+                                <td>u8[]</td>
+                                <td>The name of the first entry following the header</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </section>
 
                 <section id="fragment-table">
