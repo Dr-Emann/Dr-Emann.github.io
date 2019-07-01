@@ -164,8 +164,9 @@
                             </tr>
                             <tr>
                                 <td><code class="field-name">modification_time</code></td>
-                                <td>i32</td>
-                                <td>The number of seconds (not counting leap seconds) since 00:00, Jan&nbsp;1&nbsp;1970 UTC when the archive was created (or last appended to)</td>
+                                <td>u32</td>
+                                <td>The number of seconds (not counting leap seconds) since 00:00, Jan&nbsp;1&nbsp;1970 UTC when the archive was created (or last appended to).
+                                This is <b>unsigned</b>, so it expires in the year 2106 (as opposed to 2038).</td>
                             </tr>
                             <tr>
                                 <td><code class="field-name">block_size</code></td>
@@ -600,8 +601,8 @@ return data</code></pre>
                             </tr>
                             <tr>
                                 <td>modified_time</td>
-                                <td>i32</td>
-                                <td>The number of seconds (not counting leap seconds) since 00:00, Jan&nbsp;1&nbsp;1970 UTC when the item described by the inode was last modified</td>
+                                <td>u32</td>
+                                <td>The <i>unsigned</i> number of seconds (not counting leap seconds) since 00:00, Jan&nbsp;1&nbsp;1970 UTC when the item described by the inode was last modified</td>
                             </tr>
                             <tr>
                                 <td>inode_number</td>
