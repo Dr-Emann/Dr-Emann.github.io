@@ -589,16 +589,22 @@ return data</code></pre>
                 <section id="datablocks-and-fragments">
                     <h1>Datablocks and Fragments</h1>
                     <p>
-                        Datablocks and fragments contain the data which is contained by the files in this archive. A single file's data is stored in a number of data blocks, which are stored sequentially in this section. Because blocks are stored sequentially, the inode for a file only needs to store the position of the first block, and the compressed sizes of each block. All data blocks must be of size <code class="field-name">block_size</code>, unless fragments are not used and the file size is not equally divisible by <code class="field-name">block_size</code>.
+                        Datablocks and fragments contain the data which is contained by the files in this archive. A single file's data is stored in a number of data blocks, which are stored sequentially in this section. Because blocks are stored sequentially, the inode for a file only needs to store the position of the first block, and the compressed sizes of each block. All data blocks must be of size <code class="field-name">block_size</code>.
                     </p>
                     <p>
-                        In addition to full data blocks, files can optionally end in a fragment, if fragments are enabled (<a href="#superblock-flags"><code class="flag-name">NO_FRAGMENTS</code></a> is not set). Fragments are combined into data blocks of at most size <code class="field-name">block_size</code>, and compressed as a single block (unless compression fails to shrink the fragment block).
+                        If the size of a file is not equally divisible by <code class="field-name">block_size</code>, the final chunk can either be stored in a short block that does not uncompress to full size, or it can be stored in a fragment, if fragments are enabled (<a href="#superblock-flags"><code class="flag-name">NO_FRAGMENTS</code></a> is not set).
+                    </p>
+                    <p>
+                        Fragments of multiple files are combined into data blocks of at most size <code class="field-name">block_size</code>, and compressed as a single block (unless compression fails to shrink the fragment block).
                     </p>
                     <p>
                         Datablocks do not have headers. Information about the size and position of datablocks is stored in the inode of the file to which the datablocks belong. Information about the size and position of fragment blocks are stored in the <a href="#fragment-table">Fragment Table</a>, and the size and offset of fragments within the blocks are stored in the inode of the file to which the fragment belongs.
                     </p>
                     <p>
-                        In both the fragment table, and file inodes, the size of a data block is represented by a u32. If the <code>1 &lt;&lt; 24</code> bit is set, the data block is stored uncompressed. The size of the block on disk is described by this u32 when this bit is masked out, though the value should always be less than the max block size (1MiB). Additionally, if this size is 0, no actual block is stored, but can be considered to uncompress to a stream of zeros of whatever size is needed (<code class="field-name">block_size</code> in most cases).
+                        In both the fragment table, and file inodes, the size of a data block is represented by a u32. If the <code>1 &lt;&lt; 24</code> bit is set, the data block is stored uncompressed. The size of the block on disk is described by this u32 when this bit is masked out, though the value should always be less than the max block size (1MiB).
+                    </p>
+                    <p>
+                        Sparse files are handled at <code class="field-name">block_size</code> granularty. If an entire block is found to be full of zero bytes, the block isn't written to disk. Instead a size of zero is stored in the inode.
                     </p>
                 </section>
                 <section id="inode-table">
