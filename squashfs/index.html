@@ -362,7 +362,10 @@ return data</code></pre>
                     <h1>Compression Options</h1>
                     <p>
                         If the <code class="flag-name">COMPRESSOR_OPTIONS</code> flag is set, this section will be present immidately after the superblock, otherwise this section will not be present. If this section is present, it consists of a single <a href="#metadata-blocks">metadata block</a>, which is always uncompressed. The data is interpreted differently based on the compressor <span class="avoid-split">(<code class="field-name">compression_id</code>).</span>
-                    </p>
+		    </p>
+		    <p>
+                        For LZ4, the compressor options <i>always</i> have to be present.
+		    </p>
                     <div class="row">
                         <div class="col-12">
                             <h4>LZMA</h4>
@@ -524,6 +527,58 @@ return data</code></pre>
                                         <td>compression_level</td>
                                         <td>i32</td>
                                         <td>Should be in range 1..22 (inclusive). The real maximum is the zstd defined <code>ZSTD_maxCLevel()</code></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <h4>LZO</h4>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>algorithm</td>
+                                        <td>i32</td>
+                                        <td>Which variant of LZO to use (default is lzo1x_999):
+                                            <table class="table table-sm table-bordered font-weight-light">
+                                                <tbody>
+                                                    <tr>
+                                                        <td>lzo1x_1</td>
+                                                        <td>0</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>lzo1x_1_11</td>
+                                                        <td>1</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>lzo1x_1_12</td>
+                                                        <td>2</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>lzo1x_1_15</td>
+                                                        <td>3</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>lzo1x_999</td>
+                                                        <td>4</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+					</td>
+                                    </tr>
+                                    <tr>
+                                        <td>level</td>
+                                        <td>i32</td>
+                                        <td>Compression level. For lzo1x_999,
+                                        this can be a value between 0 and 9
+                                        (defaults to 8). Has to be 0 for all
+                                        other algorithms.</td>
                                     </tr>
                                 </tbody>
                             </table>
