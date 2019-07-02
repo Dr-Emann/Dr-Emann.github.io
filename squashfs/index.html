@@ -1236,7 +1236,7 @@ return data</code></pre>
                 <section id="xattr-table">
                     <h1>Xattr Table</h1>
                     <p>
-                        Extended attributes are arbitrary key value pairs attached to inodes. The key names are use dots as separators to create a hierarchy of namespaces.
+                        Extended attributes are arbitrary key value pairs attached to inodes. The key names use dots as separators to create a hierarchy of namespaces.
                     </p>
                     <p>
                         Squashfs uses multiple levels of indirection to store Xattr key value pairs associated with inodes. To saves space, the topmost namespace prefix is removed and encoded as an integer ID instead. This approach limits squashfs xattr support to the following, commonly used namespaces:
@@ -1251,7 +1251,7 @@ return data</code></pre>
                         This means that on the one hand squashfs can store SELinux labels or capabilities since those are stored in the <tt>security.*</tt> namespaces, but cannot store ACLs which are stored in <tt>system.posix_acl_access</tt> because it has no way to encode the <tt>system.</tt> prefix yet.
                     </p>
                     <p>
-                        The key value pairs of all inodes are stored consecutively in <a href="#metadata-blocks">metadata blocks</a>. The values can be either be stored inline, i.e. an Xattr Key Entry is directly followed by an Xattr Value Entry, or out of line to deduplicate dentical values.
+                        The key value pairs of all inodes are stored consecutively in <a href="#metadata-blocks">metadata blocks</a>. The values can be either be stored inline, i.e. an Xattr Key Entry is directly followed by an Xattr Value Entry, or out of line to deduplicate identical values.
                     </p>
                     <p>
                         TODO: clarify how out of line storage works.
