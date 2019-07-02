@@ -63,6 +63,7 @@
                         <a class="dropdown-item" href="#directory-table">Directory Table</a>
                         <a class="dropdown-item" href="#fragment-table">Fragment Table</a>
                         <a class="dropdown-item" href="#id-table">UID/GID Table</a>
+                        <a class="dropdown-item" href="#xattr-table">Xattr Table</a>
                         <div class="dropdown-divider"></div>
                         <a class="dropdown-item" href="#">Something else here</a>
                     </div>
@@ -133,8 +134,8 @@
                         </td>
                     </tr>
                     <tr>
-                        <td>Xattr Table
-                            <div class="text-muted d-block d-lg-inline-block float-none float-lg-right">Xattrs for items in the archive</div>
+                        <td><a href="#xattr-table"><span class="float-lg-left">Xattr Table</span>
+                            <div class="text-muted d-block d-lg-inline-block float-none float-lg-right">Xattrs for items in the archive</div></a>
                         </td>
                     </tr>
                 </table>
@@ -784,7 +785,7 @@ return data</code></pre>
                                     <tr>
                                         <td>xattr_idx</td>
                                         <td>u32</td>
-                                        <td>A reference to inode information in the xattr table. TODO: More info after learning about the xattr table</td>
+                                        <td>An index into the <a href="#xattr-table">xattr lookup table</a>. Set to 0xFFFFFFFF if the inode has no extended attributes</td>
                                     </tr>
                                     <tr>
                                         <td>index</td>
@@ -877,7 +878,7 @@ return data</code></pre>
                                     <tr>
                                         <td>xattr_idx</td>
                                         <td>u32</td>
-                                        <td>A reference to inode information in the xattr table. TODO: More info after learning about the xattr table</td>
+                                        <td>An index into the <a href="#xattr-table">xattr lookup table</a>. Set to 0xFFFFFFFF if the inode has no extended attributes</td>
                                     </tr>
                                     <tr>
                                         <td>block_sizes</td>
@@ -945,7 +946,7 @@ return data</code></pre>
                                     <tr>
                                         <td>xattr_idx</td>
                                         <td>u32</td>
-                                        <td>A reference to inode information in the xattr table. TODO: More info after learning about the xattr table</td>
+                                        <td>An index into the <a href="#xattr-table">xattr lookup table</a>. Set to 0xFFFFFFFF if the inode has no extended attributes</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -998,7 +999,7 @@ return data</code></pre>
                                     <tr>
                                         <td>xattr_idx</td>
                                         <td>u32</td>
-                                        <td>A reference to inode information in the xattr table. TODO: More info after learning about the xattr table</td>
+                                        <td>An index into the <a href="#xattr-table">xattr lookup table</a>. Set to 0xFFFFFFFF if the inode has no extended attributes</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -1041,7 +1042,7 @@ return data</code></pre>
                                     <tr>
                                         <td>xattr_idx</td>
                                         <td>u32</td>
-                                        <td>A reference to inode information in the xattr table. TODO: More info after learning about the xattr table</td>
+                                        <td>An index into the <a href="#xattr-table">xattr lookup table</a>. Set to 0xFFFFFFFF if the inode has no extended attributes</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -1231,6 +1232,150 @@ return data</code></pre>
                         To read the list of IDs, read <code>ceil(<span class="field-name">id_count</span> / 2048.0)</code> u64 offsets starting at
                         <code class="field-name">id_table_start</code>, then read the metadata blocks at the offsets read.
                     </p>
+                </section>
+                <section id="xattr-table">
+                    <h1>Xattr Table</h1>
+                    <p>
+                        Extended attributes are arbitrary key value pairs attached to inodes. The key names are use dots as separators to create a hierarchy of namespaces.
+                    </p>
+                    <p>
+                        Squashfs uses multiple levels of indirection to store Xattr key value pairs associated with inodes. To saves space, the topmost namespace prefix is removed and encoded as an integer ID instead. This approach limits squashfs xattr support to the following, commonly used namespaces:
+                    </p>
+                    <div class="row">
+                        <div class="col-12 col-sm-6 col-md-3">0&nbsp;-&nbsp;<tt>user.</tt></div>
+                        <div class="col-12 col-sm-6 col-md-3">1&nbsp;-&nbsp;<tt>trusted.</tt></div>
+                        <div class="col-12 col-sm-6 col-md-3">2&nbsp;-&nbsp;<tt>security.</tt></div>
+                    </div>
+                    <br/>
+                    <p>
+                        This means that on the one hand squashfs can store SELinux labels or capabilities since those are stored in the <tt>security.*</tt> namespaces, but cannot store ACLs which are stored in <tt>system.posix_acl_access</tt> because it has no way to encode the <tt>system.</tt> prefix yet.
+                    </p>
+                    <p>
+                        The key value pairs of all inodes are stored consecutively in <a href="#metadata-blocks">metadata blocks</a>. The values can be either be stored inline, i.e. an Xattr Key Entry is directly followed by an Xattr Value Entry, or out of line to deduplicate dentical values.
+                    </p>
+                    <p>
+                        TODO: clarify how out of line storage works.
+                    </p>
+                    <h4>Xattr Key Entry</h4>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>type</td>
+                                <td>u16</td>
+                                <td>The ID of the key prefix</td>
+                            </tr>
+                            <tr>
+                                <td>size</td>
+                                <td>u16</td>
+                                <td>The size of the key name <b>including</b> the omitted prefix</td>
+                            </tr>
+                            <tr>
+                                <td>name</td>
+                                <td>u8[]</td>
+                                <td>The remainder of the key without the prefix</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <h4>Xattr Value Entry</h4>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>size</td>
+                                <td>u32</td>
+                                <td>The size of the value string</td>
+                            </tr>
+                            <tr>
+                                <td>value</td>
+                                <td>u8[]</td>
+                                <td>The raw value assigned to the key</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p>
+                        To actually address a block of key value pairs associated with an inode, a lookup table is used that specifies the start and size of a block of key value pairs.
+                    </p>
+                    <p>
+                        All an inode needs to store is a 32 bit index into this table. If two inodes have the identical xattrs (e.g. they have the same SELinux labels and no other attributes), the key/value block is only written once, there is only one lookup table entry and both inodes have the same index.
+                    </p>
+                    <h4>Xattr Lookup Table</h4>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>xattr_ref</td>
+                                <td>u64</td>
+                                <td>A reference to the start of the key value block. Similar to <a href="#inode-references">inode references</a>, the bits 16 to 48 hold the metadata block index and the lower 16 bit hold an offset into the uncompressed block</td>
+                            </tr>
+                            <tr>
+                                <td>count</td>
+                                <td>u32</td>
+                                <td>The number of key value pairs</td>
+                            </tr>
+                            <tr>
+                                <td>size</td>
+                                <td>u32</td>
+                                <td>The exact, uncompressed size in bytes of the entire block of key value pairs, counting only what has been written to disk and including the key/value entry structures</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p>
+                        In order to locate both tables on disk, an approach similar to ID and fragment tables is used. The following data structure is stored directly on in the archive (i.e. uncompressed and without additional headers).
+                    </p>
+                    <p>
+                        The <code class="field-name">xattr_id_table_start</code> in the <a href="#superblock">superblock</a> stores the absolute position of this table.
+                    </p>
+                    <h4>Xattr ID Table</h4>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>xattr_table_start</td>
+                                <td>u64</td>
+                                <td>The absolute position of the first meta data block holding the key/value pairs.</td>
+                            </tr>
+                            <tr>
+                                <td>xattr_ids</td>
+                                <td>u32</td>
+                                <td>The number of entries in the Xattr Lookup Table</td>
+                            </tr>
+                            <tr>
+                                <td>_unused</td>
+                                <td>u32</td>
+                                <td>This field is unused</td>
+                            </tr>
+                            <tr>
+                                <td>table</td>
+                                <td>u64[]</td>
+                                <td>The absolute locations of each meta data block of the Xattr Lookup Table</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </section>
             </div>
         </div>
