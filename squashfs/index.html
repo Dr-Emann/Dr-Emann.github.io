@@ -789,7 +789,7 @@ return data</code></pre>
                                     </tr>
                                     <tr>
                                         <td>index</td>
-                                        <td>dir_index_t[]</td>
+                                        <td>dir_index_t[index_count + 1]</td>
                                         <td>A list of <a href="#directory-index">directory index</a> entries for faster lookup in the directory table</td>
                                     </tr>
                                 </tbody>
@@ -911,7 +911,7 @@ return data</code></pre>
                                     </tr>
                                     <tr>
                                         <td>target_path</td>
-                                        <td>u8[]</td>
+                                        <td>u8[target_size]</td>
                                         <td>The target path this symlink points to. This path is <code class="field-name">target_size</code> bytes long. There is no trailing null byte, and interior null bytes should not be allowed (however, this is currently not checked by unsquashfs)</td>
                                     </tr>
                                 </tbody>
@@ -940,7 +940,7 @@ return data</code></pre>
                                     </tr>
                                     <tr>
                                         <td>target_path</td>
-                                        <td>u8[]</td>
+                                        <td>u8[target_size]</td>
                                         <td>The target path this symlink points to. This path is <code class="field-name">target_size</code> bytes long. There is no trailing null byte, and interior null bytes should not be allowed (however, this is currently not checked by unsquashfs)</td>
                                     </tr>
                                     <tr>
@@ -1107,7 +1107,7 @@ return data</code></pre>
                                 <td>An offset into the uncompressed inode metadata block</td>
                             </tr>
                             <tr>
-                                <td>inode number</td>
+                                <td>inode offset</td>
                                 <td>i16</td>
                                 <td>The difference of this inode's number to the reference stored in the header</td>
                             </tr>
@@ -1117,13 +1117,13 @@ return data</code></pre>
                                 <td>The <a href="#inode-types">inode type</a>. <b>For extended inodes, the corresponding basic type is stored here instead<b></td>
                             </tr>
                             <tr>
-                                <td>size</td>
+                                <td>name_size</td>
                                 <td>u16</td>
                                 <td>The size of the entry name</td>
                             </tr>
                             <tr>
                                 <td>name</td>
-                                <td>u8[]</td>
+                                <td>u8[name_size + 1]</td>
                                 <td>The file name of the entry</td>
                             </tr>
                         </tbody>
@@ -1158,13 +1158,13 @@ return data</code></pre>
                                 <td>Start offset of a directory table metadata block</td>
                             </tr>
                             <tr>
-                                <td>size</td>
+                                <td>name_size</td>
                                 <td>u32</td>
                                 <td>The size of the entry name</td>
                             </tr>
                             <tr>
                                 <td>name</td>
-                                <td>u8[]</td>
+                                <td>u8[name_size + 1]</td>
                                 <td>The name of the first entry following the header</td>
                             </tr>
                         </tbody>
@@ -1272,13 +1272,13 @@ return data</code></pre>
                                 <td>The ID of the key prefix</td>
                             </tr>
                             <tr>
-                                <td>size</td>
+                                <td>name_size</td>
                                 <td>u16</td>
                                 <td>The size of the key name <b>including</b> the omitted prefix</td>
                             </tr>
                             <tr>
                                 <td>name</td>
-                                <td>u8[]</td>
+                                <td>u8[name_size]</td>
                                 <td>The remainder of the key without the prefix</td>
                             </tr>
                         </tbody>
@@ -1294,13 +1294,13 @@ return data</code></pre>
                         </thead>
                         <tbody>
                             <tr>
-                                <td>size</td>
+                                <td>value_size</td>
                                 <td>u32</td>
                                 <td>The size of the value string</td>
                             </tr>
                             <tr>
                                 <td>value</td>
-                                <td>u8[]</td>
+                                <td>u8[value_size]</td>
                                 <td>The raw value assigned to the key</td>
                             </tr>
                         </tbody>
@@ -1372,7 +1372,7 @@ return data</code></pre>
                             <tr>
                                 <td>table</td>
                                 <td>u64[]</td>
-                                <td>The absolute locations of each meta data block of the Xattr Lookup Table</td>
+                                <td>The absolute locations of each meta data block of the Xattr Lookup Table. Each entry is 16 bytes in size, so a block can hold at most 512 entries. Thus this array has <code>ceil(<span class="field-name">xattr_ids</span> / 512.0)</code> entries.</td>
                             </tr>
                         </tbody>
                     </table>
