@@ -775,7 +775,7 @@ return data</code></pre>
                                     <tr>
                                         <td>index_count</td>
                                         <td>u16</td>
-                                        <td>Number of directory index entries following the inode structure</td>
+                                        <td>One less than the number of directory index entries following the inode structure</td>
                                     </tr>
                                     <tr>
                                         <td>block_offset</td>
@@ -912,7 +912,7 @@ return data</code></pre>
                                     <tr>
                                         <td>target_path</td>
                                         <td>u8[target_size]</td>
-                                        <td>The target path this symlink points to. This path is <code class="field-name">target_size</code> bytes long. There is no trailing null byte, and interior null bytes should not be allowed (however, this is currently not checked by unsquashfs)</td>
+                                        <td>The target path this symlink points to. This path is <code class="field-name">target_size</code> bytes long. There is no trailing null byte</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -941,7 +941,7 @@ return data</code></pre>
                                     <tr>
                                         <td>target_path</td>
                                         <td>u8[target_size]</td>
-                                        <td>The target path this symlink points to. This path is <code class="field-name">target_size</code> bytes long. There is no trailing null byte, and interior null bytes should not be allowed (however, this is currently not checked by unsquashfs)</td>
+                                        <td>The target path this symlink points to. This path is <code class="field-name">target_size</code> bytes long. There is no trailing null byte</td>
                                     </tr>
                                     <tr>
                                         <td>xattr_idx</td>
@@ -1081,7 +1081,7 @@ return data</code></pre>
                             <tr>
                                 <td>inode number</td>
                                 <td>u32</td>
-                                <td>An arbitrary inode number. The entries that follow store their inode number as a difference to this.</td>
+                                <td>An arbitrary inode number. The entries that follow store their inode number as a difference to this. Typically the inode numbers are allocated in a continuous sequence for all children of a directory and the header simply stores the first one. Hard links of course break the sequence and require a new header if they are further away than +/- 32k of this number. Inode number allocation and picking of the reference could of course be optimized to prevent this</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1090,6 +1090,9 @@ return data</code></pre>
                     </p>
                     <p>
                         A header must not be followed by more than 256 entries. If there are more entries, a new header is emitted.
+                    </p>
+                    <p>
+                        The file names are stored without trailing null bytes. Since a zero length name makes no sense, the name length is stored off-by-one, i.e. the value 0 cannot be encoded
                     </p>
                     <h4 id="directory-entry">Directory Entry</h4>
                     <table class="table table-sm">
@@ -1119,12 +1122,12 @@ return data</code></pre>
                             <tr>
                                 <td>name_size</td>
                                 <td>u16</td>
-                                <td>The size of the entry name</td>
+                                <td>One less than the size of the entry name</td>
                             </tr>
                             <tr>
                                 <td>name</td>
                                 <td>u8[name_size + 1]</td>
-                                <td>The file name of the entry</td>
+                                <td>The file name of the entry without a trailing null byte</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1160,12 +1163,12 @@ return data</code></pre>
                             <tr>
                                 <td>name_size</td>
                                 <td>u32</td>
-                                <td>The size of the entry name</td>
+                                <td>One less than the size of the entry name</td>
                             </tr>
                             <tr>
                                 <td>name</td>
                                 <td>u8[name_size + 1]</td>
-                                <td>The name of the first entry following the header</td>
+                                <td>The name of the first entry following the header without a trailing null byte</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1279,7 +1282,7 @@ return data</code></pre>
                             <tr>
                                 <td>name</td>
                                 <td>u8[name_size]</td>
-                                <td>The remainder of the key without the prefix</td>
+                                <td>The remainder of the key without the prefix and without trailing null byte</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1301,7 +1304,7 @@ return data</code></pre>
                             <tr>
                                 <td>value</td>
                                 <td>u8[value_size]</td>
-                                <td>The raw value assigned to the key</td>
+                                <td>The raw value assigned to the key without trailing null byte</td>
                             </tr>
                         </tbody>
                     </table>
