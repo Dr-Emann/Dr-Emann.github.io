@@ -60,8 +60,10 @@
                         <a class="dropdown-item" href="#compression-options">Compression Options</a>
                         <a class="dropdown-item" href="#datablocks-and-fragments">Datablocks &amp; Fragments</a>
                         <a class="dropdown-item" href="#inode-table">Inode Table</a>
+                        <a class="dropdown-item" href="#directory-table">Directory Table</a>
                         <a class="dropdown-item" href="#fragment-table">Fragment Table</a>
                         <a class="dropdown-item" href="#id-table">UID/GID Table</a>
+                        <a class="dropdown-item" href="#xattr-table">Xattr Table</a>
                         <div class="dropdown-divider"></div>
                         <a class="dropdown-item" href="#">Something else here</a>
                     </div>
@@ -113,8 +115,9 @@
                         </td>
                     </tr>
                     <tr>
-                        <td><span class="float-lg-left">Directory Table</span>
+                        <td><a href="#directory-table"><span class="float-lg-left">Directory Table</span>
                             <div class="text-muted d-block d-lg-inline-block float-none float-lg-right">Directory listings, including file names, and references to inodes</div>
+                            </a>
                         </td>
                     </tr>
                     <tr>
@@ -134,8 +137,8 @@
                         </td>
                     </tr>
                     <tr>
-                        <td>Xattr Table
-                            <div class="text-muted d-block d-lg-inline-block float-none float-lg-right">Xattrs for items in the archive</div>
+                        <td><a href="#xattr-table"><span class="float-lg-left">Xattr Table</span>
+                            <div class="text-muted d-block d-lg-inline-block float-none float-lg-right">Xattrs for items in the archive</div></a>
                         </td>
                     </tr>
                 </table>
@@ -167,8 +170,9 @@
                             </tr>
                             <tr>
                                 <td><code class="field-name">modification_time</code></td>
-                                <td>i32</td>
-                                <td>The number of seconds (not counting leap seconds) since 00:00, Jan&nbsp;1&nbsp;1970 UTC when the archive was created (or last appended to)</td>
+                                <td>u32</td>
+                                <td>The number of seconds (not counting leap seconds) since 00:00, Jan&nbsp;1&nbsp;1970 UTC when the archive was created (or last appended to).
+                                This is <b>unsigned</b>, so it expires in the year 2106 (as opposed to 2038).</td>
                             </tr>
                             <tr>
                                 <td><code class="field-name">block_size</code></td>
@@ -364,7 +368,10 @@ return data</code></pre>
                     <h1>Compression Options</h1>
                     <p>
                         If the <code class="flag-name">COMPRESSOR_OPTIONS</code> flag is set, this section will be present immidately after the superblock, otherwise this section will not be present. If this section is present, it consists of a single <a href="#metadata-blocks">metadata block</a>, which is always uncompressed. The data is interpreted differently based on the compressor <span class="avoid-split">(<code class="field-name">compression_id</code>).</span>
-                    </p>
+		    </p>
+		    <p>
+                        For LZ4, the compressor options <i>always</i> have to be present.
+		    </p>
                     <div class="row">
                         <div class="col-12">
                             <h4>LZMA</h4>
@@ -530,22 +537,80 @@ return data</code></pre>
                                 </tbody>
                             </table>
                         </div>
+                        <div class="col-12 col-lg-6">
+                            <h4>LZO</h4>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>algorithm</td>
+                                        <td>i32</td>
+                                        <td>Which variant of LZO to use (default is lzo1x_999):
+                                            <table class="table table-sm table-bordered font-weight-light">
+                                                <tbody>
+                                                    <tr>
+                                                        <td>lzo1x_1</td>
+                                                        <td>0</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>lzo1x_1_11</td>
+                                                        <td>1</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>lzo1x_1_12</td>
+                                                        <td>2</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>lzo1x_1_15</td>
+                                                        <td>3</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>lzo1x_999</td>
+                                                        <td>4</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+					</td>
+                                    </tr>
+                                    <tr>
+                                        <td>level</td>
+                                        <td>i32</td>
+                                        <td>Compression level. For lzo1x_999,
+                                        this can be a value between 0 and 9
+                                        (defaults to 8). Has to be 0 for all
+                                        other algorithms.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </section>
 
                 <section id="datablocks-and-fragments">
                     <h1>Datablocks and Fragments</h1>
                     <p>
-                        Datablocks and fragments contain the data which is contained by the files in this archive. A single file's data is stored in a number of data blocks, which are stored sequentially in this section. Because blocks are stored sequentially, the inode for a file only needs to store the position of the first block, and the compressed sizes of each block. All data blocks must be of size <code class="field-name">block_size</code>, unless fragments are not used and the file size is not equally divisible by <code class="field-name">block_size</code>.
+                        Datablocks and fragments contain the data which is contained by the files in this archive. A single file's data is stored in a number of data blocks, which are stored sequentially in this section. Because blocks are stored sequentially, the inode for a file only needs to store the position of the first block, and the compressed sizes of each block. All data blocks must be of size <code class="field-name">block_size</code>.
                     </p>
                     <p>
-                        In addition to full data blocks, files can optionally end in a fragment, if fragments are enabled (<a href="#superblock-flags"><code class="flag-name">NO_FRAGMENTS</code></a> is not set). Fragments are combined into data blocks of at most size <code class="field-name">block_size</code>, and compressed as a single block (unless compression fails to shrink the fragment block).
+                        If the size of a file is not equally divisible by <code class="field-name">block_size</code>, the final chunk can either be stored in a short block that does not uncompress to full size, or it can be stored in a fragment, if fragments are enabled (<a href="#superblock-flags"><code class="flag-name">NO_FRAGMENTS</code></a> is not set).
+                    </p>
+                    <p>
+                        Fragments of multiple files are combined into data blocks of at most size <code class="field-name">block_size</code>, and compressed as a single block (unless compression fails to shrink the fragment block).
                     </p>
                     <p>
                         Datablocks do not have headers. Information about the size and position of datablocks is stored in the inode of the file to which the datablocks belong. Information about the size and position of fragment blocks are stored in the <a href="#fragment-table">Fragment Table</a>, and the size and offset of fragments within the blocks are stored in the inode of the file to which the fragment belongs.
                     </p>
                     <p>
-                        In both the fragment table, and file inodes, the size of a data block is represented by a u32. If the <code>1 &lt;&lt; 24</code> bit is set, the data block is stored uncompressed. The size of the block on disk is described by this u32 when this bit is masked out, though the value should always be less than the max block size (1MiB). Additionally, if this size is 0, no actual block is stored, but can be considered to uncompress to a stream of zeros of whatever size is needed (<code class="field-name">block_size</code> in most cases).
+                        In both the fragment table, and file inodes, the size of a data block is represented by a u32. If the <code>1 &lt;&lt; 24</code> bit is set, the data block is stored uncompressed. The size of the block on disk is described by this u32 when this bit is masked out, though the value should always be less than the max block size (1MiB).
+                    </p>
+                    <p>
+                        Sparse files are handled at <code class="field-name">block_size</code> granularty. If an entire block is found to be full of zero bytes, the block isn't written to disk. Instead a size of zero is stored in the inode.
                     </p>
                 </section>
                 <section id="inode-table">
@@ -603,8 +668,8 @@ return data</code></pre>
                             </tr>
                             <tr>
                                 <td>modified_time</td>
-                                <td>i32</td>
-                                <td>The number of seconds (not counting leap seconds) since 00:00, Jan&nbsp;1&nbsp;1970 UTC when the item described by the inode was last modified</td>
+                                <td>u32</td>
+                                <td>The <i>unsigned</i> number of seconds (not counting leap seconds) since 00:00, Jan&nbsp;1&nbsp;1970 UTC when the item described by the inode was last modified</td>
                             </tr>
                             <tr>
                                 <td>inode_number</td>
@@ -664,7 +729,7 @@ return data</code></pre>
                                     <tr>
                                         <td>file_size</td>
                                         <td>u16</td>
-                                        <td>TODO: Check meaning</td>
+                                        <td>Total (uncompressed) size in bytes of the entries in the <a href="#directory-table">Directory Table</a>, including headers</td>
                                     </tr>
                                     <tr>
                                         <td>block_offset</td>
@@ -698,7 +763,7 @@ return data</code></pre>
                                     <tr>
                                         <td>file_size</td>
                                         <td>u32</td>
-                                        <td>TODO: Check meaning</td>
+                                        <td>Total (uncompressed) size in bytes of the entries in the <a href="#directory-table">Directory Table</a>, including headers</td>
                                     </tr>
                                     <tr>
                                         <td>block_idx</td>
@@ -713,7 +778,7 @@ return data</code></pre>
                                     <tr>
                                         <td>index_count</td>
                                         <td>u16</td>
-                                        <td>The number of directory indexes. TODO: More Info. May be related to exports?</td>
+                                        <td>One less than the number of directory index entries following the inode structure</td>
                                     </tr>
                                     <tr>
                                         <td>block_offset</td>
@@ -723,7 +788,12 @@ return data</code></pre>
                                     <tr>
                                         <td>xattr_idx</td>
                                         <td>u32</td>
-                                        <td>A reference to inode information in the xattr table. TODO: More info after learning about the xattr table</td>
+                                        <td>An index into the <a href="#xattr-table">xattr lookup table</a>. Set to 0xFFFFFFFF if the inode has no extended attributes</td>
+                                    </tr>
+                                    <tr>
+                                        <td>index</td>
+                                        <td>dir_index_t[index_count + 1]</td>
+                                        <td>A list of <a href="#directory-index">directory index</a> entries for faster lookup in the directory table</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -791,12 +861,12 @@ return data</code></pre>
                                     <tr>
                                         <td>sparse</td>
                                         <td>u64</td>
-                                        <td>TODO</td>
+                                        <td>The number of bytes saved by omitting blocks of zero bytes. Used in the kernel for sparse file accounting</td>
                                     </tr>
                                     <tr>
                                         <td>hard_link_count</td>
                                         <td>u32</td>
-                                        <td>The number of hard links to this directory</td>
+                                        <td>The number of hard links to this node</td>
                                     </tr>
                                     <tr>
                                         <td>fragment_block_index</td>
@@ -811,7 +881,7 @@ return data</code></pre>
                                     <tr>
                                         <td>xattr_idx</td>
                                         <td>u32</td>
-                                        <td>A reference to inode information in the xattr table. TODO: More info after learning about the xattr table</td>
+                                        <td>An index into the <a href="#xattr-table">xattr lookup table</a>. Set to 0xFFFFFFFF if the inode has no extended attributes</td>
                                     </tr>
                                     <tr>
                                         <td>block_sizes</td>
@@ -844,8 +914,8 @@ return data</code></pre>
                                     </tr>
                                     <tr>
                                         <td>target_path</td>
-                                        <td>u8[]</td>
-                                        <td>The target path this symlink points to. This path is <code class="field-name">target_size</code> bytes long. There is no trailing null byte, and interior null bytes should not be allowed (however, this is currently not checked by unsquashfs)</td>
+                                        <td>u8[target_size]</td>
+                                        <td>The target path this symlink points to. This path is <code class="field-name">target_size</code> bytes long. There is no trailing null byte</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -873,13 +943,13 @@ return data</code></pre>
                                     </tr>
                                     <tr>
                                         <td>target_path</td>
-                                        <td>u8[]</td>
-                                        <td>The target path this symlink points to. This path is <code class="field-name">target_size</code> bytes long. There is no trailing null byte, and interior null bytes should not be allowed (however, this is currently not checked by unsquashfs)</td>
+                                        <td>u8[target_size]</td>
+                                        <td>The target path this symlink points to. This path is <code class="field-name">target_size</code> bytes long. There is no trailing null byte</td>
                                     </tr>
                                     <tr>
                                         <td>xattr_idx</td>
                                         <td>u32</td>
-                                        <td>A reference to inode information in the xattr table. TODO: More info after learning about the xattr table</td>
+                                        <td>An index into the <a href="#xattr-table">xattr lookup table</a>. Set to 0xFFFFFFFF if the inode has no extended attributes</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -932,7 +1002,7 @@ return data</code></pre>
                                     <tr>
                                         <td>xattr_idx</td>
                                         <td>u32</td>
-                                        <td>A reference to inode information in the xattr table. TODO: More info after learning about the xattr table</td>
+                                        <td>An index into the <a href="#xattr-table">xattr lookup table</a>. Set to 0xFFFFFFFF if the inode has no extended attributes</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -975,12 +1045,136 @@ return data</code></pre>
                                     <tr>
                                         <td>xattr_idx</td>
                                         <td>u32</td>
-                                        <td>A reference to inode information in the xattr table. TODO: More info after learning about the xattr table</td>
+                                        <td>An index into the <a href="#xattr-table">xattr lookup table</a>. Set to 0xFFFFFFFF if the inode has no extended attributes</td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
+                </section>
+
+                <section id="directory-table">
+                  <h1>Directory Table</h1>
+                    <p>
+                        For each directory inode, the directory table stores a list of all entries stored inside, with references back to the inodes that describe those entries.
+                    </p>
+                    <p>
+                        The entry list is self is sorted ASCIIbetically by entry name. To save space, a delta encoding is used to store the inode number, i.e. the list is preceeded by a header with a reference inode number and all entries store the difference to that. Furthermore, the header also includes the location of a meta data block that the inodes of all of the following entries are in. The entries just store an offset into the uncompressed metadata block.
+                    </p>
+                    <h4 id="directory-header">Directory Header</h4>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>count</td>
+                                <td>u32</td>
+                                <td>Number of entries following the header</td>
+                            </tr>
+                            <tr>
+                                <td>start</td>
+                                <td>u32</td>
+                                <td>The index of the block in the <a href="#inode-table">Inode Table</a> where the inodes is stored</td>
+                            </tr>
+                            <tr>
+                                <td>inode number</td>
+                                <td>u32</td>
+                                <td>An arbitrary inode number. The entries that follow store their inode number as a difference to this. Typically the inode numbers are allocated in a continuous sequence for all children of a directory and the header simply stores the first one. Hard links of course break the sequence and require a new header if they are further away than +/- 32k of this number. Inode number allocation and picking of the reference could of course be optimized to prevent this</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p>
+                        Every time, the inode block changes or the difference of the inode number cannot be encoded in 16 bits anymore, a new header is emitted.
+                    </p>
+                    <p>
+                        A header must not be followed by more than 256 entries. If there are more entries, a new header is emitted.
+                    </p>
+                    <p>
+                        The file names are stored without trailing null bytes. Since a zero length name makes no sense, the name length is stored off-by-one, i.e. the value 0 cannot be encoded
+                    </p>
+                    <h4 id="directory-entry">Directory Entry</h4>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>offset</td>
+                                <td>u16</td>
+                                <td>An offset into the uncompressed inode metadata block</td>
+                            </tr>
+                            <tr>
+                                <td>inode offset</td>
+                                <td>i16</td>
+                                <td>The difference of this inode's number to the reference stored in the header</td>
+                            </tr>
+                            <tr>
+                                <td>type</td>
+                                <td>u16</td>
+                                <td>The <a href="#inode-types">inode type</a>. <b>For extended inodes, the corresponding basic type is stored here instead<b></td>
+                            </tr>
+                            <tr>
+                                <td>name_size</td>
+                                <td>u16</td>
+                                <td>One less than the size of the entry name</td>
+                            </tr>
+                            <tr>
+                                <td>name</td>
+                                <td>u8[name_size + 1]</td>
+                                <td>The file name of the entry without a trailing null byte</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p>
+                      The <a href="#inode-directory-basic">basic</a> and <a href="#inode-directory-extended">extended</a> inode types both have a size field that stores the uncompressed size of all the directory entries (including all headers) belonging to the inode. This field is used to deduce if more data is following while iterating over directory entries, even without knowing how many headers and partial lists there will be.
+                    </p>
+                    <h4 id="directory-index">Directory Index</h4>
+                    <p>
+                      To speed up lookups on directories with lots of entries, the <a href="#inode-directory-extended">extended directory inode</a> can store an index table, holding the locations of all <a href="#directory-header">directory headers</a> and the name of the first entry after the header.
+                    </p>
+                    <p>
+                      To allow for fast lookups, a new <a href="#directory-header">directory header</a> should be emitted every time the entry list crosses a metadata block boundary.
+                    </p>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>index</td>
+                                <td>u32</td>
+                                <td>An offset into the uncompressed metadata block</td>
+                            </tr>
+                            <tr>
+                                <td>start</td>
+                                <td>u32</td>
+                                <td>Start offset of a directory table metadata block</td>
+                            </tr>
+                            <tr>
+                                <td>name_size</td>
+                                <td>u32</td>
+                                <td>One less than the size of the entry name</td>
+                            </tr>
+                            <tr>
+                                <td>name</td>
+                                <td>u8[name_size + 1]</td>
+                                <td>The name of the first entry following the header without a trailing null byte</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </section>
 
                 <section id="fragment-table">
@@ -1044,6 +1238,150 @@ return data</code></pre>
                         To read the list of IDs, read <code>ceil(<span class="field-name">id_count</span> / 2048.0)</code> u64 offsets starting at
                         <code class="field-name">id_table_start</code>, then read the metadata blocks at the offsets read.
                     </p>
+                </section>
+                <section id="xattr-table">
+                    <h1>Xattr Table</h1>
+                    <p>
+                        Extended attributes are arbitrary key value pairs attached to inodes. The key names use dots as separators to create a hierarchy of namespaces.
+                    </p>
+                    <p>
+                        Squashfs uses multiple levels of indirection to store Xattr key value pairs associated with inodes. To saves space, the topmost namespace prefix is removed and encoded as an integer ID instead. This approach limits squashfs xattr support to the following, commonly used namespaces:
+                    </p>
+                    <div class="row">
+                        <div class="col-12 col-sm-6 col-md-3">0&nbsp;-&nbsp;<tt>user.</tt></div>
+                        <div class="col-12 col-sm-6 col-md-3">1&nbsp;-&nbsp;<tt>trusted.</tt></div>
+                        <div class="col-12 col-sm-6 col-md-3">2&nbsp;-&nbsp;<tt>security.</tt></div>
+                    </div>
+                    <br/>
+                    <p>
+                        This means that on the one hand squashfs can store SELinux labels or capabilities since those are stored in the <tt>security.*</tt> namespaces, but cannot store ACLs which are stored in <tt>system.posix_acl_access</tt> because it has no way to encode the <tt>system.</tt> prefix yet.
+                    </p>
+                    <p>
+                        The key value pairs of all inodes are stored consecutively in <a href="#metadata-blocks">metadata blocks</a>. The values can be either be stored inline, i.e. an Xattr Key Entry is directly followed by an Xattr Value Entry, or out of line to deduplicate identical values.
+                    </p>
+                    <p>
+                        TODO: clarify how out of line storage works.
+                    </p>
+                    <h4>Xattr Key Entry</h4>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>type</td>
+                                <td>u16</td>
+                                <td>The ID of the key prefix</td>
+                            </tr>
+                            <tr>
+                                <td>name_size</td>
+                                <td>u16</td>
+                                <td>The size of the key name <b>including</b> the omitted prefix</td>
+                            </tr>
+                            <tr>
+                                <td>name</td>
+                                <td>u8[name_size]</td>
+                                <td>The remainder of the key without the prefix and without trailing null byte</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <h4>Xattr Value Entry</h4>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>value_size</td>
+                                <td>u32</td>
+                                <td>The size of the value string</td>
+                            </tr>
+                            <tr>
+                                <td>value</td>
+                                <td>u8[value_size]</td>
+                                <td>The raw value assigned to the key without trailing null byte</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p>
+                        To actually address a block of key value pairs associated with an inode, a lookup table is used that specifies the start and size of a block of key value pairs.
+                    </p>
+                    <p>
+                        All an inode needs to store is a 32 bit index into this table. If two inodes have the identical xattrs (e.g. they have the same SELinux labels and no other attributes), the key/value block is only written once, there is only one lookup table entry and both inodes have the same index.
+                    </p>
+                    <h4>Xattr Lookup Table</h4>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>xattr_ref</td>
+                                <td>u64</td>
+                                <td>A reference to the start of the key value block. Similar to <a href="#inode-references">inode references</a>, the bits 16 to 48 hold the metadata block index and the lower 16 bit hold an offset into the uncompressed block</td>
+                            </tr>
+                            <tr>
+                                <td>count</td>
+                                <td>u32</td>
+                                <td>The number of key value pairs</td>
+                            </tr>
+                            <tr>
+                                <td>size</td>
+                                <td>u32</td>
+                                <td>The exact, uncompressed size in bytes of the entire block of key value pairs, counting only what has been written to disk and including the key/value entry structures</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p>
+                        In order to locate both tables on disk, an approach similar to ID and fragment tables is used. The following data structure is stored directly on in the archive (i.e. uncompressed and without additional headers).
+                    </p>
+                    <p>
+                        The <code class="field-name">xattr_id_table_start</code> in the <a href="#superblock">superblock</a> stores the absolute position of this table.
+                    </p>
+                    <h4>Xattr ID Table</h4>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>xattr_table_start</td>
+                                <td>u64</td>
+                                <td>The absolute position of the first meta data block holding the key/value pairs.</td>
+                            </tr>
+                            <tr>
+                                <td>xattr_ids</td>
+                                <td>u32</td>
+                                <td>The number of entries in the Xattr Lookup Table</td>
+                            </tr>
+                            <tr>
+                                <td>_unused</td>
+                                <td>u32</td>
+                                <td>This field is unused</td>
+                            </tr>
+                            <tr>
+                                <td>table</td>
+                                <td>u64[]</td>
+                                <td>The absolute locations of each meta data block of the Xattr Lookup Table. Each entry is 16 bytes in size, so a block can hold at most 512 entries. Thus this array has <code>ceil(<span class="field-name">xattr_ids</span> / 512.0)</code> entries.</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </section>
             </div>
         </div>
