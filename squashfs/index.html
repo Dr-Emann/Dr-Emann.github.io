@@ -1260,7 +1260,10 @@ return data</code></pre>
                         The key value pairs of all inodes are stored consecutively in <a href="#metadata-blocks">metadata blocks</a>. The values can be either be stored inline, i.e. an Xattr Key Entry is directly followed by an Xattr Value Entry, or out of line to deduplicate identical values.
                     </p>
                     <p>
-                        TODO: clarify how out of line storage works.
+                        If a value is stored out of line, the value entry structure holds a 64 bit reference instead of a string that specifies the location of the value string, similar to an <a href="#inode-references">inode reference</a>, but relative to the the first meta data block containing the key value pairs.
+                    </p>
+                    <p>
+                        Typically, the first occurrence of a value is stored in line and every consecutive use of the same value uses an out of line value to refer back to the first one.
                     </p>
                     <h4>Xattr Key Entry</h4>
                     <table class="table table-sm">
@@ -1275,7 +1278,7 @@ return data</code></pre>
                             <tr>
                                 <td>type</td>
                                 <td>u16</td>
-                                <td>The ID of the key prefix</td>
+                                <td>The ID of the key prefix. If the value that follows is stored out of line, the flag 0x0100 is ORed to the type ID</td>
                             </tr>
                             <tr>
                                 <td>name_size</td>
@@ -1302,12 +1305,12 @@ return data</code></pre>
                             <tr>
                                 <td>value_size</td>
                                 <td>u32</td>
-                                <td>The size of the value string</td>
+                                <td>The size of the value string. If the value is stored out of line, this is always 8, i.e. the size of an unsigned 64 bit integer</td>
                             </tr>
                             <tr>
                                 <td>value</td>
                                 <td>u8[value_size]</td>
-                                <td>The raw value assigned to the key without trailing null byte</td>
+                                <td>The raw value assigned to the key without trailing null byte, or if the value is stored out of line, a reference to the location of the value string</td>
                             </tr>
                         </tbody>
                     </table>
