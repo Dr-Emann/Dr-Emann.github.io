@@ -1280,11 +1280,11 @@ return data</code></pre>
                             <tr>
                                 <td>name_size</td>
                                 <td>u16</td>
-                                <td>The size of the key name <b>including</b> the omitted prefix</td>
+                                <td>The size of the key name <b>including</b> the omitted prefix but exlcuding the trailing null byte</td>
                             </tr>
                             <tr>
                                 <td>name</td>
-                                <td>u8[name_size]</td>
+                                <td>u8[name_size - strlen(prefix)]</td>
                                 <td>The remainder of the key without the prefix and without trailing null byte</td>
                             </tr>
                         </tbody>
