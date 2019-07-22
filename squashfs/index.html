@@ -1058,7 +1058,7 @@ return data</code></pre>
                         For each directory inode, the directory table stores a list of all entries stored inside, with references back to the inodes that describe those entries.
                     </p>
                     <p>
-                        The entry list is self is sorted ASCIIbetically by entry name. To save space, a delta encoding is used to store the inode number, i.e. the list is preceeded by a header with a reference inode number and all entries store the difference to that. Furthermore, the header also includes the location of a meta data block that the inodes of all of the following entries are in. The entries just store an offset into the uncompressed metadata block.
+                        The entry list is self is sorted ASCIIbetically by entry name. To save space, a delta encoding is used to store the inode number, i.e. the list is preceeded by a header with a reference inode number and all entries store the difference to that. Furthermore, the header also includes the location of a metadata block that the inodes of all of the following entries are in. The entries just store an offset into the uncompressed metadata block.
                     </p>
                     <h4 id="directory-header">Directory Header</h4>
                     <table class="table table-sm">
@@ -1155,7 +1155,7 @@ return data</code></pre>
                             <tr>
                                 <td>index</td>
                                 <td>u32</td>
-                                <td>This stores a byte offset from the first directory header to the current header, as if the uncompressed directory meta data blocks were laid out in memory consecutively.</td>
+                                <td>This stores a byte offset from the first directory header to the current header, as if the uncompressed directory metadata blocks were laid out in memory consecutively.</td>
                             </tr>
                             <tr>
                                 <td>start</td>
@@ -1276,7 +1276,7 @@ return data</code></pre>
                         The key value pairs of all inodes are stored consecutively in <a href="#metadata-blocks">metadata blocks</a>. The values can be either be stored inline, i.e. an Xattr Key Entry is directly followed by an Xattr Value Entry, or out of line to deduplicate identical values.
                     </p>
                     <p>
-                        If a value is stored out of line, the value entry structure holds a 64 bit reference instead of a string that specifies the location of the value string, similar to an <a href="#inode-references">inode reference</a>, but relative to the the first meta data block containing the key value pairs.
+                        If a value is stored out of line, the value entry structure holds a 64 bit reference instead of a string that specifies the location of the value string, similar to an <a href="#inode-references">inode reference</a>, but relative to the the first metadata block containing the key value pairs.
                     </p>
                     <p>
                         Typically, the first occurrence of a value is stored in line and every consecutive use of the same value uses an out of line value to refer back to the first one.
@@ -1382,7 +1382,7 @@ return data</code></pre>
                             <tr>
                                 <td>xattr_table_start</td>
                                 <td>u64</td>
-                                <td>The absolute position of the first meta data block holding the key/value pairs.</td>
+                                <td>The absolute position of the first metadata block holding the key/value pairs.</td>
                             </tr>
                             <tr>
                                 <td>xattr_ids</td>
@@ -1397,7 +1397,7 @@ return data</code></pre>
                             <tr>
                                 <td>table</td>
                                 <td>u64[]</td>
-                                <td>The absolute locations of each meta data block of the Xattr Lookup Table. Each entry is 16 bytes in size, so a block can hold at most 512 entries. Thus this array has <code>ceil(<span class="field-name">xattr_ids</span> / 512.0)</code> entries.</td>
+                                <td>The absolute locations of each metadata block of the Xattr Lookup Table. Each entry is 16 bytes in size, so a block can hold at most 512 entries. Thus this array has <code>ceil(<span class="field-name">xattr_ids</span> / 512.0)</code> entries.</td>
                             </tr>
                         </tbody>
                     </table>
