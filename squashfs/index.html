@@ -62,10 +62,9 @@
                         <a class="dropdown-item" href="#inode-table">Inode Table</a>
                         <a class="dropdown-item" href="#directory-table">Directory Table</a>
                         <a class="dropdown-item" href="#fragment-table">Fragment Table</a>
+                        <a class="dropdown-item" href="#export-table">Export Table</a>
                         <a class="dropdown-item" href="#id-table">UID/GID Table</a>
                         <a class="dropdown-item" href="#xattr-table">Xattr Table</a>
-                        <div class="dropdown-divider"></div>
-                        <a class="dropdown-item" href="#">Something else here</a>
                     </div>
                 </li>
                 <li class="nav-item">
@@ -127,7 +126,7 @@
                         </td>
                     </tr>
                     <tr>
-                        <td><span class="float-lg-left">Export Table</span>
+                        <td><a href="#export-table"><span class="float-lg-left">Export Table</span>
                             <div class="text-muted d-block d-lg-inline-block float-none float-lg-right">A mapping from inode numbers to disk locations, required for NFS export</div>
                         </td>
                     </tr>
@@ -1059,7 +1058,7 @@ return data</code></pre>
                         For each directory inode, the directory table stores a list of all entries stored inside, with references back to the inodes that describe those entries.
                     </p>
                     <p>
-                        The entry list is self is sorted ASCIIbetically by entry name. To save space, a delta encoding is used to store the inode number, i.e. the list is preceeded by a header with a reference inode number and all entries store the difference to that. Furthermore, the header also includes the location of a meta data block that the inodes of all of the following entries are in. The entries just store an offset into the uncompressed metadata block.
+                        The entry list is self is sorted ASCIIbetically by entry name. To save space, a delta encoding is used to store the inode number, i.e. the list is preceeded by a header with a reference inode number and all entries store the difference to that. Furthermore, the header also includes the location of a metadata block that the inodes of all of the following entries are in. The entries just store an offset into the uncompressed metadata block.
                     </p>
                     <h4 id="directory-header">Directory Header</h4>
                     <table class="table table-sm">
@@ -1156,7 +1155,7 @@ return data</code></pre>
                             <tr>
                                 <td>index</td>
                                 <td>u32</td>
-                                <td>An offset into the uncompressed metadata block</td>
+                                <td>This stores a byte offset from the first directory header to the current header, as if the uncompressed directory metadata blocks were laid out in memory consecutively.</td>
                             </tr>
                             <tr>
                                 <td>start</td>
@@ -1222,7 +1221,24 @@ return data</code></pre>
                         </tbody>
                     </table>
                 </section>
-
+                <section id="export-table">
+                    <h1>Export Table</h1>
+                    <p>
+                        To support NFS exports, squashfs needs a fast way to resolve an inode number to an inode structure.
+                    </p>
+                    <p>
+                        For this purpose, a squashfs archive can optionally contain an export table, which is basically a flat array of 64 bit <a href="#inode-references">inode references</a> with the inode number being used as an index into the array.
+                    </p>
+                    <p>
+                        Because the inode number 0 is not used (as it is reserved as a sentinel value in Linux and other UNIX-like OS kernels), the array actually starts at inode number 1 and the index is thus <code><span class="field-name">inode_number</span> - 1</code>.
+                    </p>
+                    <p>
+                        The array itself is stored in a series of <a href="#metadata-blocks">metadata blocks</a>. Since each block can store 1024 references (8 byte per reference), there will be <code>ceil(<span class="field-name">inode_count</span> / 1024.0)</code> metadata blocks for the entire array.
+                    </p>
+                    <p>
+                        To locate the metadata blocks, a secondary list is used, containing the absolute, on-disk locations of the blocks. This list is stored uncompressed and starts at <code class="field-name">export_table_start</code>.
+                    </p>
+                </section>
                 <section id="id-table">
                     <h1>UID/GID Table</h1>
                     <p>
@@ -1260,7 +1276,10 @@ return data</code></pre>
                         The key value pairs of all inodes are stored consecutively in <a href="#metadata-blocks">metadata blocks</a>. The values can be either be stored inline, i.e. an Xattr Key Entry is directly followed by an Xattr Value Entry, or out of line to deduplicate identical values.
                     </p>
                     <p>
-                        TODO: clarify how out of line storage works.
+                        If a value is stored out of line, the value entry structure holds a 64 bit reference instead of a string that specifies the location of the value string, similar to an <a href="#inode-references">inode reference</a>, but relative to the the first metadata block containing the key value pairs.
+                    </p>
+                    <p>
+                        Typically, the first occurrence of a value is stored in line and every consecutive use of the same value uses an out of line value to refer back to the first one.
                     </p>
                     <h4>Xattr Key Entry</h4>
                     <table class="table table-sm">
@@ -1275,16 +1294,16 @@ return data</code></pre>
                             <tr>
                                 <td>type</td>
                                 <td>u16</td>
-                                <td>The ID of the key prefix</td>
+                                <td>The ID of the key prefix. If the value that follows is stored out of line, the flag 0x0100 is ORed to the type ID</td>
                             </tr>
                             <tr>
                                 <td>name_size</td>
                                 <td>u16</td>
-                                <td>The size of the key name <b>including</b> the omitted prefix</td>
+                                <td>The size of the key name <b>including</b> the omitted prefix but exlcuding the trailing null byte</td>
                             </tr>
                             <tr>
                                 <td>name</td>
-                                <td>u8[name_size]</td>
+                                <td>u8[name_size - strlen(prefix)]</td>
                                 <td>The remainder of the key without the prefix and without trailing null byte</td>
                             </tr>
                         </tbody>
@@ -1302,12 +1321,12 @@ return data</code></pre>
                             <tr>
                                 <td>value_size</td>
                                 <td>u32</td>
-                                <td>The size of the value string</td>
+                                <td>The size of the value string. If the value is stored out of line, this is always 8, i.e. the size of an unsigned 64 bit integer</td>
                             </tr>
                             <tr>
                                 <td>value</td>
                                 <td>u8[value_size]</td>
-                                <td>The raw value assigned to the key without trailing null byte</td>
+                                <td>The raw value assigned to the key without trailing null byte, or if the value is stored out of line, a reference to the location of the value string</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1363,7 +1382,7 @@ return data</code></pre>
                             <tr>
                                 <td>xattr_table_start</td>
                                 <td>u64</td>
-                                <td>The absolute position of the first meta data block holding the key/value pairs.</td>
+                                <td>The absolute position of the first metadata block holding the key/value pairs.</td>
                             </tr>
                             <tr>
                                 <td>xattr_ids</td>
@@ -1378,7 +1397,7 @@ return data</code></pre>
                             <tr>
                                 <td>table</td>
                                 <td>u64[]</td>
-                                <td>The absolute locations of each meta data block of the Xattr Lookup Table. Each entry is 16 bytes in size, so a block can hold at most 512 entries. Thus this array has <code>ceil(<span class="field-name">xattr_ids</span> / 512.0)</code> entries.</td>
+                                <td>The absolute locations of each metadata block of the Xattr Lookup Table. Each entry is 16 bytes in size, so a block can hold at most 512 entries. Thus this array has <code>ceil(<span class="field-name">xattr_ids</span> / 512.0)</code> entries.</td>
                             </tr>
                         </tbody>
                     </table>
