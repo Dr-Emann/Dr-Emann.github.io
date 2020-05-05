@@ -352,7 +352,7 @@
                     </p>
                     <pre class="pre-scrollable pseudocode example"><code>header = read_u16(offset=offset)
 data_size = header &amp; 0x7FFF
-compressed = header &amp; 0x8000
+compressed = !(header &amp; 0x8000)
 data = read(offset=offset+2, len=data_size)
 if(compressed) {
     data = uncompress(data)
