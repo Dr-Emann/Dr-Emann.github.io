@@ -1058,6 +1058,9 @@ return data</code></pre>
                         For each directory inode, the directory table stores a list of all entries stored inside, with references back to the inodes that describe those entries.
                     </p>
                     <p>
+                        The directory inodes store the total, uncompressed size of the entire listing, including headers. Using this size, a SquashFS reader can determine if another header with further entries should be following once it reaches the end of a run.
+                    </p>
+                    <p>
                         The entry list is self is sorted ASCIIbetically by entry name. To save space, a delta encoding is used to store the inode number, i.e. the list is preceeded by a header with a reference inode number and all entries store the difference to that. Furthermore, the header also includes the location of a metadata block that the inodes of all of the following entries are in. The entries just store an offset into the uncompressed metadata block.
                     </p>
                     <h4 id="directory-header">Directory Header</h4>
