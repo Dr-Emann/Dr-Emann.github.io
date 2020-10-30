@@ -777,7 +777,7 @@ return data</code></pre>
                                     <tr>
                                         <td>index_count</td>
                                         <td>u16</td>
-                                        <td>One less than the number of directory index entries following the inode structure</td>
+                                        <td>The number of directory index entries following the inode structure</td>
                                     </tr>
                                     <tr>
                                         <td>block_offset</td>
@@ -791,7 +791,7 @@ return data</code></pre>
                                     </tr>
                                     <tr>
                                         <td>index</td>
-                                        <td>dir_index_t[index_count + 1]</td>
+                                        <td>dir_index_t[index_count]</td>
                                         <td>A list of <a href="#directory-index">directory index</a> entries for faster lookup in the directory table</td>
                                     </tr>
                                 </tbody>
