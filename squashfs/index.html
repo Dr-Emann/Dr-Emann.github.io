@@ -366,7 +366,7 @@ return data</code></pre>
                 <section id="compression-options">
                     <h1>Compression Options</h1>
                     <p>
-                        If the <code class="flag-name">COMPRESSOR_OPTIONS</code> flag is set, this section will be present immidately after the superblock, otherwise this section will not be present. If this section is present, it consists of a single <a href="#metadata-blocks">metadata block</a>, which is always uncompressed. The data is interpreted differently based on the compressor <span class="avoid-split">(<code class="field-name">compression_id</code>).</span>
+                        If the <code class="flag-name">COMPRESSOR_OPTIONS</code> flag is set, this section will be present immediately after the superblock, otherwise this section will not be present. If this section is present, it consists of a single <a href="#metadata-blocks">metadata block</a>, which is always uncompressed. The data is interpreted differently based on the compressor <span class="avoid-split">(<code class="field-name">compression_id</code>).</span>
 		    </p>
 		    <p>
                         For LZ4, the compressor options <i>always</i> have to be present.
@@ -609,7 +609,7 @@ return data</code></pre>
                         In both the fragment table, and file inodes, the size of a data block is represented by a u32. If the <code>1 &lt;&lt; 24</code> bit is set, the data block is stored uncompressed. The size of the block on disk is described by this u32 when this bit is masked out, though the value should always be less than the max block size (1MiB).
                     </p>
                     <p>
-                        Sparse files are handled at <code class="field-name">block_size</code> granularty. If an entire block is found to be full of zero bytes, the block isn't written to disk. Instead a size of zero is stored in the inode.
+                        Sparse files are handled at <code class="field-name">block_size</code> granularity. If an entire block is found to be full of zero bytes, the block isn't written to disk. Instead a size of zero is stored in the inode.
                     </p>
                 </section>
                 <section id="inode-table">
@@ -624,12 +624,12 @@ return data</code></pre>
                         To further maximise compression, inodes come in two flavors: simple inode types optimised for frequently occurring items, and extended inode types where extra information has to be stored.
                     </p>
                     <p>
-                        If the <code class="flag-name">UNCOMPRESSED_INODES</code> flag is set, all metadata blocks should stored uncompressed. If the flag is not set, metadata blocks will be stored compressed if compression decreases the size of the block as described in the <a href="#metadata-blocks">metadata block section</a>.
+                        If the <code class="flag-name">UNCOMPRESSED_INODES</code> flag is set, all metadata blocks should be stored uncompressed. If the flag is not set, metadata blocks will be stored compressed if compression decreases the size of the block as described in the <a href="#metadata-blocks">metadata block section</a>.
                     </p>
 
                     <h3 id="inode-references">Inode References</h3>
                     <p>
-                        Entries in the Inode table are referenced (for example, in directory entries) with u64 values. The upper 16 bits are unused. The next 32 bits describe the index of the metadata block. The lower 16 bits describe the (uncompressed) offset within the metadata block where the inode <strong>begins</strong> (remember that an inode may straddle the border between two metadata blocks). For example, an inode reference with the value <code class="avoid-split">0x0000_000001FF_01A0</code> will be located in the metadata block at index <code>0x000001FF</code> (the 512th block), starting at the byte at index <code>0x01A0</code> (the 417th byte) when the block is uncompressed.
+                        Entries in the Inode table are referenced (for example, in directory entries) with u64 values. The upper 16 bits are unused. The next 32 bits are the position of the first byte of the metadata block, relative to the start of the inode table. The lower 16 bits describe the (uncompressed) offset within the metadata block where the inode <strong>begins</strong> (remember that an inode may straddle the border between two metadata blocks). For example, an inode reference with the value <code class="avoid-split">0x0000_000001FF_01A0</code> will be located in the metadata block that starts at byte <code class="field-name">inode_table_start</code>+<code>0x000001FF</code>. After decompressing the block, the inode itself then starts at the byte at index <code>0x01A0</code> (the 417th byte) of the uncompressed data.
                     </p>
 
                     <h3 id="inode-header">Inode Header</h3>
@@ -1076,17 +1076,17 @@ return data</code></pre>
                             <tr>
                                 <td>count</td>
                                 <td>u32</td>
-                                <td>Number of entries following the header</td>
+                                <td>One less than the number of entries following the header</td>
                             </tr>
                             <tr>
                                 <td>start</td>
                                 <td>u32</td>
-                                <td>The index of the block in the <a href="#inode-table">Inode Table</a> where the inodes is stored</td>
+                                <td>The starting byte offset of the block in the <a href="#inode-table">Inode Table</a> where the inodes are stored</td>
                             </tr>
                             <tr>
                                 <td>inode number</td>
                                 <td>u32</td>
-                                <td>An arbitrary inode number. The entries that follow store their inode number as a difference to this. Typically the inode numbers are allocated in a continuous sequence for all children of a directory and the header simply stores the first one. Hard links of course break the sequence and require a new header if they are further away than +/- 32k of this number. Inode number allocation and picking of the reference could of course be optimized to prevent this</td>
+                                <td>An arbitrary inode number. The entries that follow store their inode number as a difference to this. Typically the inode numbers are allocated in a continuous sequence for all children of a directory and the header simply stores the first one. Hard links of course break the sequence and require a new header if they are further away than +/- 32k of this number. Inode number allocation and picking of the reference could of course be optimized to prevent this.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1094,10 +1094,10 @@ return data</code></pre>
                         Every time, the inode block changes or the difference of the inode number cannot be encoded in 16 bits anymore, a new header is emitted.
                     </p>
                     <p>
-                        A header must not be followed by more than 256 entries. If there are more entries, a new header is emitted.
+                        A header must have at least one entry. A header must not be followed by more than 256 entries. If there are more entries, a new header is emitted.
                     </p>
                     <p>
-                        The file names are stored without trailing null bytes. Since a zero length name makes no sense, the name length is stored off-by-one, i.e. the value 0 cannot be encoded
+                        The file names are stored without trailing null bytes. Since a zero length name makes no sense, the name length is stored off-by-one, i.e. the value 0 cannot be encoded.
                     </p>
                     <h4 id="directory-entry">Directory Entry</h4>
                     <table class="table table-sm">
@@ -1352,7 +1352,7 @@ return data</code></pre>
                             <tr>
                                 <td>xattr_ref</td>
                                 <td>u64</td>
-                                <td>A reference to the start of the key value block. Similar to <a href="#inode-references">inode references</a>, the bits 16 to 48 hold the metadata block index and the lower 16 bit hold an offset into the uncompressed block</td>
+                                <td>A reference to the start of the key value block. Similar to <a href="#inode-references">inode references</a>, the bits 16 to 48 hold the absolute position of the first metadata block and the lower 16 bits hold an offset into the uncompressed block.</td>
                             </tr>
                             <tr>
                                 <td>count</td>
