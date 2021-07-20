@@ -735,7 +735,7 @@ return data</code></pre>
                                     <tr>
                                         <td>file_size</td>
                                         <td>u16</td>
-                                        <td>Total (uncompressed) size in bytes of the entries in the <a href="#directory-table">Directory Table</a>, including headers</td>
+                                        <td>Total (uncompressed) size in bytes of the entries in the <a href="#directory-table">Directory Table</a>, including headers plus 3. The extra 3 bytes are for a virtual "." and ".." item in each directory which is not written, but can be considered to be part of the logical size of the directory.</td>
                                     </tr>
                                     <tr>
                                         <td>block_offset</td>
@@ -769,7 +769,7 @@ return data</code></pre>
                                     <tr>
                                         <td>file_size</td>
                                         <td>u32</td>
-                                        <td>Total (uncompressed) size in bytes of the entries in the <a href="#directory-table">Directory Table</a>, including headers</td>
+                                        <td>Total (uncompressed) size in bytes of the entries in the <a href="#directory-table">Directory Table</a>, including headers plus 3. The extra 3 bytes are for a virtual "." and ".." item in each directory which is not written, but can be considered to be part of the logical size of the directory.</td>
                                     </tr>
                                     <tr>
                                         <td>block_idx</td>
