@@ -723,14 +723,18 @@ return data</code></pre>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td>block_idx</td>
+                                        <td>dir_block_start</td>
                                         <td>u32</td>
-                                        <td>The index of the block in the <a href="#directory-table">Directory Table</a> where the directory entry information starts</td>
+                                        <td>The location of the of the block in the <a href="#directory-table">Directory Table</a> where the directory entry information starts</td>
                                     </tr>
                                     <tr>
                                         <td>hard_link_count</td>
                                         <td>u32</td>
-                                        <td>The number of hard links to this directory</td>
+                                        <td>
+                                            The number of hard links to this directory. Note that for historical reasons, the hard link count of a directory includes
+                                            the number of entries in the directory and is initialized to 2 for an empty
+                                            directory. I.e. a directory with <code>N</code> entries has at least <code>N + 2</code> link count.
+                                        </td>
                                     </tr>
                                     <tr>
                                         <td>file_size</td>
@@ -764,7 +768,11 @@ return data</code></pre>
                                     <tr>
                                         <td>hard_link_count</td>
                                         <td>u32</td>
-                                        <td>The number of hard links to this directory</td>
+                                        <td>
+                                            The number of hard links to this directory. Note that for historical reasons, the hard link count of a directory includes
+                                            the number of entries in the directory and is initialized to 2 for an empty
+                                            directory. I.e. a directory with <code>N</code> entries has at least <code>N + 2</code> link count.
+                                        </td>
                                     </tr>
                                     <tr>
                                         <td>file_size</td>
@@ -772,9 +780,9 @@ return data</code></pre>
                                         <td>Total (uncompressed) size in bytes of the entries in the <a href="#directory-table">Directory Table</a>, including headers plus 3. The extra 3 bytes are for a virtual "." and ".." item in each directory which is not written, but can be considered to be part of the logical size of the directory.</td>
                                     </tr>
                                     <tr>
-                                        <td>block_idx</td>
+                                        <td>dir_block_start</td>
                                         <td>u32</td>
-                                        <td>The index of the block in the <a href="#directory-table">Directory Table</a> where the directory entry information starts</td>
+                                        <td>The location of the of the block in the <a href="#directory-table">Directory Table</a> where the directory entry information starts</td>
                                     </tr>
                                     <tr>
                                         <td>parent_inode_number</td>
