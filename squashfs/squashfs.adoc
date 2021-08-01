@@ -241,7 +241,7 @@ including the locations of other sections.
 ! 0x0010 ! Fragments are not used.
 ! 0x0020 ! Fragments are always generated.
 ! 0x0040 ! Data has been deduplicated.
-! 0x0080 ! NFS Export data exists.
+! 0x0080 ! NFS export table exists.
 ! 0x0100 ! Xattrs are stored uncompressed.
 ! 0x0200 ! There are no Xattrs in the archive.
 ! 0x0400 ! Compressor options are present.
@@ -639,17 +639,15 @@ attributes and don't support hard-link or sparse file accounting:
 |===
 | Type | Name | Description
 | u32 | blocks start | The offset from the start of the archive to the first
-                       data block.                                          
+                       data block.
 | u32 | frag index | An index into the <<Fragment Table>> which describes the fragment
                      block that the tail end of this file is stored in. If not used,
                      this is set to `0xFFFFFFFF`.
-// Section 3 is "The Superblock", is that correct?
 | u32 | block offset | The (uncompressed) offset within the fragment block
-                       where the tail end of this file is. See section 3
+                       where the tail end of this file is. See <<Data and Fragment Blocks>>
                        for details.
 | u32 | file size | The (uncompressed) size of this file.
-// Section 3 is "The Superblock", is that correct?
-| u32[] | block sizes | An array of consecutive block sizes. See section 3 for details.
+| u32[] | block sizes | An array of consecutive block sizes. See <<Data and Fragment Blocks>> for details.
 |===
 
 If 'frag index' is set to `0xFFFFFFFF`, the number of blocks is computed as
@@ -692,7 +690,7 @@ sparse file accounting and hard links, and can have extended attributes:
 | u64 | blocks start | Same as above (but larger).
 | u64 | file size | Same as above (but larger).
 | u64 | sparse | The number of bytes saved by omitting zero bytes.
-                 Used in the kernel for sparse file accounting.   
+                 Used in the kernel for sparse file accounting.
 | u32 | link count | The number of hard links to this node.
 | u32 | frag index | Same as above.
 | u32 | block offset | Same as above.
@@ -713,9 +711,9 @@ symlinks):
 | u32 | link count | The number of hard links to this symlink.
 | u32 | target size | The size in bytes of the target path this symlink
                       points to.
-| u8[] | target path | An array of bytes holding the target path this    
+| u8[] | target path | An array of bytes holding the target path this
                        symlink points to. The path is 'target size' bytes
-                       long and NOT null-terminated.                     
+                       long and NOT null-terminated.
 |===
 
 The extended symlink type adds an additional extended attribute index:
@@ -738,13 +736,13 @@ The layout is identical for both character and block devices:
 |===
 | Type | Name | Description
 | u32 | link count | The number of hard links to this entry.
-| u32 | device number | The system specific device number.                 
+| u32 | device number | The system specific device number.
                         +
                         +
-                        On Linux, this consists of major and minor device  
-                        numbers that can be extracted as follows:          
+                        On Linux, this consists of major and minor device
+                        numbers that can be extracted as follows:
 
-                          major = (dev & 0xFFF00) >> 8.                    
+                          major = (dev & 0xFFF00) >> 8.
                           minor = (dev & 0x000FF) | ((dev >> 12) & 0xFFF00)
 |===
 
@@ -817,12 +815,10 @@ The directory header has the following structure:
 | Type | Name | Description
 | u32 | count | Number of entries following the header.
 | u32 | start | The location of the metadata block in the inode table
-                where the inodes are stored. This is relative to the 
+                where the inodes are stored. This is relative to the
                 inode table start from the super block.
-// Is this really signed? It makes sense that the offsets in the entries
-// are signed, but can this really be negative?
 | s32 | inode number | An arbitrary inode number. The entries that follow
-                       store their inode number as a difference to this. 
+                       store their inode number as a difference to this.
 |===
 
 The counter is stored off-by-one, i.e. a value of 0 indicates 1 entry follows.
@@ -876,15 +872,15 @@ The index entries have the following structure:
 [cols="1,4,20a",frame="none",grid="none",options="header"]
 |===
 | Type | Name | Description
-| u32 | index | This stores a byte offset from the first directory  
+| u32 | index | This stores a byte offset from the first directory
                 header to the current header, as if the uncompressed
-                directory metadata blocks were laid out in memory   
+                directory metadata blocks were laid out in memory
                 consecutively.
 | u32 | start | Start offset of a directory table metadata block,
-                relative to the directory table start.           
+                relative to the directory table start.
 | u32 | name size | One less than the size of the entry name.
 | u8[] | name | The name of the first entry following the header
-                without a trailing null byte.                   
+                without a trailing null byte.
 |===
 
 == Fragment Table
@@ -968,8 +964,8 @@ The keys are stored using the following data structure:
 |===
 | Type | Name | Description
 | u16 | type | A prefix ID for the key name. If the value that follows
-               is stored out-of-line, the flag `0x0100` is **OR**ed to the  
-               type ID.                                               
+               is stored out-of-line, the flag `0x0100` is **OR**ed to the
+               type ID.
 
 [cols=">1,10",frame="none",grid="none",options="header"]
 !===
@@ -990,13 +986,13 @@ Following the key, this structure is used to store the value:
 |===
 | Type | Name | Description
 | u32 | value size | The size of the value string. If the value is stored
-                     out of line, this is always 8, i.e. the size of an  
+                     out of line, this is always 8, i.e. the size of an
                      unsigned 64 bit integer.
 | u8[] | value | This is 'value size' bytes of arbitrary binary data.
                  If the value is stored out-of-line, this is a 64 bit
-                 reference, i.e. a location of a metadata block,     
+                 reference, i.e. a location of a metadata block,
                  shifted left by 16 and **OR**ed with an offset into the
-                 uncompressed block, giving the location of another  
+                 uncompressed block, giving the location of another
                  value structure.
 |===
 
@@ -1021,9 +1017,9 @@ Each lookup table entry has the following structure:
                     with an offset into the uncompressed block.
 | u32 | count | The number of key value pairs.
 | u32 | size | The exact, uncompressed size in bytes of the entire
-               block of key value pairs, counting what has been   
-               written to disk and including the key/value entry  
-               structures.                                        
+               block of key value pairs, counting what has been
+               written to disk and including the key/value entry
+               structures.
 |===
 
 This lookup table is stored as outlined in <<Storing Lookup Tables>>
@@ -1044,9 +1040,9 @@ following data structure which is stored on-disk as is, uncompressed:
 | u64 | kv start | The absolute position of the first metadata block holding the
                    key/value pairs.
 | u32 | count | The number of entries in the lookup table.
-| u32 | unused | *SHOULD* be set to 0, however Linux currently ignores  
+| u32 | unused | *SHOULD* be set to 0, however Linux currently ignores
                  this field completely and squashfs-tools used to leak
-                 stack data here, making it impossible for Linux to   
+                 stack data here, making it impossible for Linux to
                  ever re-purpose this field.
 | u64[] | locations | An array holding the absolute on-disk location of each
                       metadata block of the lookup table.
