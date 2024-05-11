@@ -276,7 +276,7 @@ present" flag. In fact, this is the only flag that the Linux kernel
 implementation actually tests for.
 
 The compressor options, however, are also only there for informal purpose, as
-most compression libraries understand their own stream format irregardless of
+most compression libraries understand their own stream format regardless of
 the options used to compress and in fact don't provide any options for the
 decompressor. In the Linux kernel, the XZ decompressor is currently the only
 one that processes those options to pre-allocate the LZMA dictionary if a
