@@ -1,6 +1,8 @@
 .PHONY: all
 
-all: squashfs/squashfs.html
+HTML_FILES := squashfs/squashfs.html
 
-squashfs/squashfs.html: squashfs/squashfs.adoc
+all: $(HTML_FILES)
+
+%.html: %.adoc
 	asciidoctor $<
