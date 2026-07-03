@@ -1,0 +1,188 @@
+= YAFFS2 Binary Format
+:toc: left
+:toclevels: 4
+:sectnums:
+
+== About
+
+YAFFS (Yet Another Flash File System) is a log-structured file system for NAND flash hardware.
+
+YAFFS1 was the first version of the format, designed for NAND chips of the time.
+
+YAFFS2 (the format this document describes) was an evolution of the format to relax some hard coded assumptions about NAND geometries, and to become truly log-structured:
+YAFFS2 is strongly "write-once".
+
+This document attempts to be precise in its usage of YAFFS/YAFFS1/YAFFS2.
+When referring to something that is true of both YAFFS1 and 2, it will use simply YAFFS, otherwise it will use YAFFS1/YAFFS2 to indicate something that only applies to that version.
+
+== Concepts
+
+Chunk::
++
+--
+A chunk is the unit of allocation.
+Typically, a chunk will be the same as a NAND page, but this is not required.
+
+There are two types of chunks:
+
+Data Chunks::
+A chunk holding regular data file contents
+Object Header Chunks::
+A descriptor for an object.
+This holds details such as the identifier for the parent directory, object name, etc
+--
+
+Spare Data::
++
+--
+Chunks have a small associated "Spare Data" or "Out of Band Data" area.
+When stored in an image, the spare data is stored immediately after the data section of the chunk.
+
+Spare Data is used to store tags associated with the chunk (usually, see <<_params_inband_tags>> which can be used in case spare data is too small).
+--
+
+Block::
+A block is a collection of entries, typically 32 to 128 but as many as a few hundred.
+A block is the unit of erasure.
+
+Object::
++
+--
+An object is anything that is stored on the filesystem:
+
+- Regular Data Files
+- Directories
+- Hard Links
+- Symbolic Links
+- Special Objects (Pipes, Devices, Sockets)
+
+All objects are identified by a unique integer object id (`obj_id`)
+--
+
+Tags::
++
+--
+Stores information about the associated chunk.
+Stores e.g. the `obj_id` associated with the chunk, the chunk id within the object, the size of the data (if associated with a data chunk).
+The exact data stored is different between YAFFS1 and YAFFS2.
+
+Tags are stored in spare data, unless configured to be stored inband (because spare data is too small).
+--
+
+== Overview
+
+A YAFFS filesystem is simply a collection of blocks.
+There is no overall metadata or header.
+Because YAFFS is a log-structured filesystem, multiple versions of the same chunks can appear.
+In general, the "latest" version of each chunk "wins", earlier versions of the same chunk are ignored.
+
+== Parameters
+
+There are several parameters which can be configured for a YAFFS filesystem.
+Because there is no filesystem-level metadata, the reader of a YAFFS filesystem must know these parameters inherently (or have them transmitted out of band, or guess).
+
+Total Bytes Per Chunk::
+The number of bytes in the data area of the chunk.
+If not configured with <<_params_inband_tags>>, then this whole area will be used to store data and the tags will be stored in the spare area.
+If <<_params_inband_tags>> is enabled then the end of this area will be used to store tags and the rest will be used to store data.
+
+Spare Bytes Per Chunk::
+The number of bytes available for Spare Data out of band, associated with each chunk.
+
+Chunks Per Block::
+The number of chunks per block
+
+[[_params_inband_tags]]Inband Tags::
+Flag indicating whether tags should be stored in the data area.
+
+[[_params_tag_ecc]]Tag ECC::
+Flag indicating whether tags are followed by ECC (Error Correction Code).
+If <<_params_inband_tags>> are enabled, this is always disabled.
+
+== Tags Format
+
+=== YAFFS1
+
+This document is currently focused on YAFFS2, and does not document YAFFS1 fully.
+
+=== YAFFS2
+
+[cols="2,2,13a",frame="none",grid="none",options="header"]
+|===
+| Type | Name | Description
+
+| u32 | seq_num
+|
+Sequence Number for this chunk.
+Should be the same for all (written) chunks in a block.
+
+| u32 | obj_id
+|
+The id of the the object this chunk is related to.
+
+Additionally, the most significant nibble of this value _can_ be used to store the object type (`obj_id \| (object_type << 28)`).
+This should only be done if the chunk_id field indicates <<_extra_tag_info>> is present.
+
+| u32 | chunk_id
+|
+Identifies where in the file this chunk belongs.
+`chunk_id==0` signifies this chunk is an <<_object_header>>.
+`chunk_id==1` signifies this is first chunk in the file (ie. At file offset 0), `chunk_id==2` is the next chunk and so on.
+
+[#_extra_tag_info,reftext=Extra Tag Info]
+Additionally, the most significant nibble of the stored value may be used to store extra info.
+This should only be present for <<_object_header,Object Headers>>.
+This also must not be set if this object is a file whose size in bytes cannot fit in 31 bits.
+The following bits can be set in the most significant nibble:
+
+0x8:: This bit is always set to indicate extra tag information is set
+// TODO: Document this
+0x4:: This bit is set to indicate the "shrink" flag is set.
+// TODO: Document this
+0x2:: This bit is set to indicate the "shadows" flag is set.
+0x1:: This bit is currently reserved, and should always be unset.
+
+| u32 | n_bytes
+|
+The populated size of this Data Chunk.
+If this is not a Data Chunk, the value is ignored (usually stored with all bits set), unless the chunk_id field indicates <<_extra_tag_info>> is present.
+If <<_extra_tag_info>> is present, the value is based on the object type:
+
+Hardlink:: Stores the object id of the object this is hardlinked to.
+File:: Stores the size of the whole file.
+Otherwise:: Always stores 0
+|===
+
+==== Tag ECC
+
+If <<_params_tag_ecc>> is enabled (and <<_params_inband_tags>> are _not_ enabled), the tags are immediately followed by ECC information.
+The ECC implementation is based on the algorithm used in SmartMedia.
+
+[cols="2,2,13a",frame="none",grid="none",options="header"]
+|===
+| Type | Name | Description
+| u8 | col_parity
+|
+The 6 bits of column parity information:
+
+[horizontal]
+0x01:: Parity of bits 0,2,4,6
+0x02:: Parity of bits 1,3,5,7
+0x04:: Parity of bits 0,1,4,5
+0x08:: Parity of bits 2,3,6,7
+0x10:: Parity of bits 0,1,2,3
+0x20:: Parity of bits 4,5,6,7
+
+| [u8; 3] | padding | Unused padding bytes
+
+| u32 | line_parity
+|
+The XOR of _indexes_ with an odd number of bits set in the byte.
+
+| u32 | line_parity_inv
+|
+The XOR of the bitwise inverse of _indexes_ with an odd number of bits set in the byte.
+|===
+
+[#_object_header]
+=== Object Header
