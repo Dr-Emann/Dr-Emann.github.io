@@ -1,6 +1,6 @@
 .PHONY: all
 
-HTML_FILES := squashfs/squashfs.html yaffs2/yaffs2.html
+HTML_FILES := squashfs/squashfs.html yaffs/yaffs.html
 
 all: $(HTML_FILES)
 
