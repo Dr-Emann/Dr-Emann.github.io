@@ -442,17 +442,49 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <ul class="sectlevel1">
 <li><a href="#_about">1. About</a></li>
 <li><a href="#_concepts">2. Concepts</a></li>
-<li><a href="#_overview">3. Overview</a></li>
+<li><a href="#_overview">3. Overview</a>
+<ul class="sectlevel2">
+<li><a href="#_image_layout">3.1. Image Layout</a></li>
+<li><a href="#_endianness">3.2. Endianness</a></li>
+<li><a href="#_error_correction">3.3. Error Correction</a></li>
+</ul>
+</li>
 <li><a href="#_parameters">4. Parameters</a></li>
 <li><a href="#_tags_format">5. Tags Format</a>
 <ul class="sectlevel2">
 <li><a href="#_yaffs1">5.1. YAFFS1</a></li>
 <li><a href="#_yaffs2">5.2. YAFFS2</a>
 <ul class="sectlevel3">
-<li><a href="#_tag_ecc">5.2.1. Tag ECC</a></li>
+<li><a href="#_extra_tag_info">5.2.1. Extra Tag Info</a></li>
+<li><a href="#_tag_ecc">5.2.2. Tag ECC</a></li>
+<li><a href="#_inband_tags">5.2.3. Inband Tags</a></li>
 </ul>
 </li>
-<li><a href="#_object_header">5.3. Object Header</a></li>
+</ul>
+</li>
+<li><a href="#_special_object_ids">6. Special Object Ids</a></li>
+<li><a href="#_object_header">7. Object Header</a>
+<ul class="sectlevel2">
+<li><a href="#_timestamps">7.1. Timestamps</a></li>
+<li><a href="#_file_size">7.2. File Size</a></li>
+<li><a href="#_xattrs">7.3. Extended Attributes</a></li>
+</ul>
+</li>
+<li><a href="#_block_summaries">8. Block Summaries</a></li>
+<li><a href="#_scanning">9. Reading a YAFFS2 Image</a>
+<ul class="sectlevel2">
+<li><a href="#_block_pre_scan">9.1. Block Pre-Scan</a></li>
+<li><a href="#_scanning_a_block">9.2. Scanning a Block</a></li>
+<li><a href="#_scan_data_chunks">9.3. Data Chunks</a></li>
+<li><a href="#_scan_object_headers">9.4. Object Headers</a>
+<ul class="sectlevel3">
+<li><a href="#_deletion">9.4.1. Deletion</a></li>
+<li><a href="#_shrink_headers">9.4.2. Shrink Headers</a></li>
+<li><a href="#_shadowing">9.4.3. Shadowing</a></li>
+<li><a href="#_hard_links">9.4.4. Hard Links</a></li>
+</ul>
+</li>
+<li><a href="#_checkpoints">9.5. Checkpoints</a></li>
 </ul>
 </li>
 </ul>
@@ -526,7 +558,7 @@ When stored in an image, the spare data is stored immediately after the data sec
 </dd>
 <dt class="hdlist1">Block</dt>
 <dd>
-<p>A block is a collection of entries, typically 32 to 128 but as many as a few hundred.
+<p>A block is a collection of chunks, typically 32 to 128 but as many as a few hundred.
 A block is the unit of erasure.</p>
 </dd>
 <dt class="hdlist1">Object</dt>
@@ -576,6 +608,57 @@ The exact data stored is different between YAFFS1 and YAFFS2.</p>
 </div>
 </div>
 </dd>
+<dt class="hdlist1"><a id="_sequence_number"></a>Sequence Number</dt>
+<dd>
+<div class="openblock">
+<div class="content">
+<div class="paragraph">
+<p>Every block is assigned a sequence number when it is allocated for writing.
+Sequence numbers increase monotonically over the life of the filesystem, so they record the order in which blocks were written.
+All chunks in a block store the block&#8217;s sequence number in their tags.
+Since YAFFS2 never rewrites chunks in place, the sequence number is what allows a reader to reconstruct the order of events in the log (see <a href="#_scanning">Reading a YAFFS2 Image</a>).</p>
+</div>
+<div class="paragraph">
+<p>Chunks within a block are written in order, from the first chunk to the last.
+This totally orders all chunks in the filesystem: a chunk is <em>newer</em> than another if its block has a higher sequence number, or if it is later within the same block (all chunks in a block share the same sequence number).
+Whenever this document refers to the "latest" or "newest" version of something, it means the latest by this order.</p>
+</div>
+<div class="paragraph">
+<p>Normal sequence numbers are at least <code>0x00001000</code> and strictly below <code>0xEFFFFF00</code>.
+Values outside this range are special:</p>
+</div>
+<div class="hdlist">
+<table>
+<tr>
+<td class="hdlist1">
+<code>0x00000021</code>
+</td>
+<td class="hdlist2">
+<p>The block holds <a href="#_checkpoints">checkpoint data</a>, not regular chunks.</p>
+</td>
+</tr>
+<tr>
+<td class="hdlist1">
+<code>0xFFFF0000</code>
+</td>
+<td class="hdlist2">
+<p>The block is bad.
+When a block fails and the driver-level bad block marking also fails, the block is erased and its first chunk rewritten with this sequence number (and zeroes in the other tag fields) so the block can still be recognized as bad.</p>
+</td>
+</tr>
+<tr>
+<td class="hdlist1">
+<code>0xFFFFFFFF</code>
+</td>
+<td class="hdlist2">
+<p>All-ones is not a real sequence number: an erased chunk reads as all <code>0xFF</code> bytes, so tags with an all-ones sequence number indicate an unwritten chunk.</p>
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+</dd>
 </dl>
 </div>
 </div>
@@ -587,7 +670,40 @@ The exact data stored is different between YAFFS1 and YAFFS2.</p>
 <p>A YAFFS filesystem is simply a collection of blocks.
 There is no overall metadata or header.
 Because YAFFS is a log-structured filesystem, multiple versions of the same chunks can appear.
-In general, the "latest" version of each chunk "wins", earlier versions of the same chunk are ignored.</p>
+The latest version of each chunk wins, and all earlier versions are ignored (see <a href="#_sequence_number">Sequence Number</a> for how chunks are ordered).</p>
+</div>
+<div class="sect2">
+<h3 id="_image_layout">3.1. Image Layout</h3>
+<div class="paragraph">
+<p>On NAND hardware, the data area of a chunk is stored in a page and the spare data is stored in the page&#8217;s out of band (OOB) area.
+When YAFFS is stored as an image file, each chunk&#8217;s data area is followed immediately by its spare data area.
+Chunks appear in order within a block, and blocks appear in order.</p>
+</div>
+<div class="paragraph">
+<p>A freshly erased block reads as all <code>0xFF</code> bytes.
+Anything that would be all <code>0xFF</code> (a whole block, a single chunk, or the tags of a chunk) is considered unwritten.</p>
+</div>
+<div class="paragraph">
+<p>All structures described in this document are byte packed:
+fields are stored consecutively with no implicit alignment padding.
+Where padding exists on disk, it is listed explicitly as a field.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_endianness">3.2. Endianness</h3>
+<div class="paragraph">
+<p>YAFFS stores all integers in the native byte order of the system that wrote the filesystem.
+Images are most commonly little endian, and all layouts in this document assume little endian storage.
+A reader that supports both byte orders can detect a byte-swapped filesystem by sanity checking values it reads (for example, sequence numbers and object types have small valid ranges).</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_error_correction">3.3. Error Correction</h3>
+<div class="paragraph">
+<p>Except for the optional <a href="#_tag_ecc">Tag ECC</a> covering the tags themselves, error correction is not part of the YAFFS2 format:
+ECC for the data area of a chunk is the responsibility of the flash driver or MTD layer.
+When reading an image file rather than physical flash, no ECC processing is needed.</p>
+</div>
 </div>
 </div>
 </div>
@@ -612,16 +728,23 @@ If <a href="#_params_inband_tags">Inband Tags</a> is enabled then the end of thi
 </dd>
 <dt class="hdlist1">Chunks Per Block</dt>
 <dd>
-<p>The number of chunks per block</p>
+<p>The number of chunks per block.</p>
 </dd>
 <dt class="hdlist1"><a id="_params_inband_tags"></a>Inband Tags</dt>
 <dd>
-<p>Flag indicating whether tags should be stored in the data area.</p>
+<p>Flag indicating whether tags should be stored in the data area rather than in the Spare Data.
+See <a href="#_inband_tags">Inband Tags</a> for details.</p>
 </dd>
 <dt class="hdlist1"><a id="_params_tag_ecc"></a>Tag ECC</dt>
 <dd>
 <p>Flag indicating whether tags are followed by ECC (Error Correction Code).
-If <a href="#_params_inband_tags">Inband Tags</a> are enabled, this is always disabled.</p>
+If <a href="#_params_inband_tags">Inband Tags</a> are enabled, this is always disabled.
+See <a href="#_tag_ecc">Tag ECC</a> for details.</p>
+</dd>
+<dt class="hdlist1"><a id="_params_summaries"></a>Summaries</dt>
+<dd>
+<p>Flag indicating whether <a href="#_block_summaries">Block Summaries</a> are written to the end of each block.
+A reader can also detect summaries by their reserved object id (see <a href="#_special_object_ids">Special Object Ids</a>).</p>
 </dd>
 </dl>
 </div>
@@ -656,19 +779,21 @@ If <a href="#_params_inband_tags">Inband Tags</a> are enabled, this is always di
 <td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">seq_num</p></td>
 <td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
-<p>Sequence Number for this chunk.
+<p><a href="#_sequence_number">Sequence Number</a> for this chunk.
 Should be the same for all (written) chunks in a block.</p>
+</div>
+<div class="paragraph">
+<p>A value of <code>0xFFFFFFFF</code> (all bits set) indicates the chunk was never written.</p>
 </div></div></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">obj_id</p></td>
 <td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
-<p>The id of the the object this chunk is related to.</p>
+<p>The id of the object this chunk is related to.</p>
 </div>
 <div class="paragraph">
-<p>Additionally, the most significant nibble of this value <em>can</em> be used to store the object type (<code>obj_id | (object_type &lt;&lt; 28)</code>).
-This should only be done if the chunk_id field indicates <a href="#_extra_tag_info">Extra Tag Info</a> is present.</p>
+<p>If <a href="#_extra_tag_info">Extra Tag Info</a> is present, the most significant nibble stores the object type instead of being part of the object id.</p>
 </div></div></td>
 </tr>
 <tr>
@@ -677,33 +802,10 @@ This should only be done if the chunk_id field indicates <a href="#_extra_tag_in
 <td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
 <p>Identifies where in the file this chunk belongs.
 <code>chunk_id==0</code> signifies this chunk is an <a href="#_object_header">Object Header</a>.
-<code>chunk_id==1</code> signifies this is first chunk in the file (ie. At file offset 0), <code>chunk_id==2</code> is the next chunk and so on.</p>
+<code>chunk_id==1</code> signifies this is the first chunk in the file (ie. At file offset 0), <code>chunk_id==2</code> is the next chunk and so on.</p>
 </div>
-<div id="_extra_tag_info" class="paragraph">
-<p>Additionally, the most significant nibble of the stored value may be used to store extra info.
-This should only be present for <a href="#_object_header">Object Headers</a>.
-This also must not be set if this object is a file whose size in bytes cannot fit in 31 bits.
-The following bits can be set in the most significant nibble:</p>
-</div>
-<div class="dlist">
-<dl>
-<dt class="hdlist1">0x8</dt>
-<dd>
-<p>This bit is always set to indicate extra tag information is set</p>
-</dd>
-<dt class="hdlist1">0x4</dt>
-<dd>
-<p>This bit is set to indicate the "shrink" flag is set.</p>
-</dd>
-<dt class="hdlist1">0x2</dt>
-<dd>
-<p>This bit is set to indicate the "shadows" flag is set.</p>
-</dd>
-<dt class="hdlist1">0x1</dt>
-<dd>
-<p>This bit is currently reserved, and should always be unset.</p>
-</dd>
-</dl>
+<div class="paragraph">
+<p>If the most significant bit is set, this chunk is an object header whose tags carry <a href="#_extra_tag_info">Extra Tag Info</a>, and the rest of the field is interpreted differently.</p>
 </div></div></td>
 </tr>
 <tr>
@@ -711,30 +813,123 @@ The following bits can be set in the most significant nibble:</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock">n_bytes</p></td>
 <td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
 <p>The populated size of this Data Chunk.
-If this is not a Data Chunk, the value is ignored (usually stored with all bits set), unless the chunk_id field indicates <a href="#_extra_tag_info">Extra Tag Info</a> is present.
-If <a href="#_extra_tag_info">Extra Tag Info</a> is present, the value is based on the object type:</p>
-</div>
-<div class="dlist">
-<dl>
-<dt class="hdlist1">Hardlink</dt>
-<dd>
-<p>Stores the object id of the object this is hardlinked to.</p>
-</dd>
-<dt class="hdlist1">File</dt>
-<dd>
-<p>Stores the size of the whole file.</p>
-</dd>
-<dt class="hdlist1">Otherwise</dt>
-<dd>
-<p>Always stores 0</p>
-</dd>
-</dl>
+If this is not a Data Chunk, the value is ignored, unless <a href="#_extra_tag_info">Extra Tag Info</a> is present.</p>
 </div></div></td>
 </tr>
 </tbody>
 </table>
 <div class="sect3">
-<h4 id="_tag_ecc">5.2.1. Tag ECC</h4>
+<h4 id="_extra_tag_info">5.2.1. Extra Tag Info</h4>
+<div class="paragraph">
+<p>The tags of an object header chunk may duplicate key fields of the <a href="#_object_header">Object Header</a>, so that a scanner can reconstruct the directory tree from tags alone, without reading the data area of most object header chunks (see <a href="#_scanning">Reading a YAFFS2 Image</a>).</p>
+</div>
+<div class="paragraph">
+<p>Extra tag info is present if and only if the most significant bit of the <code>chunk_id</code> field is set (<code>chunk_id &amp; 0x80000000 != 0</code>).</p>
+</div>
+<div class="paragraph">
+<p>Extra tag info should only be present on <a href="#_object_header">Object Header</a> chunks, and must not be used if the object is a file whose size in bytes cannot fit in 31 bits.
+When present, the tag fields are reinterpreted as follows:</p>
+</div>
+<div class="dlist">
+<dl>
+<dt class="hdlist1">chunk_id</dt>
+<dd>
+<div class="openblock">
+<div class="content">
+<div class="paragraph">
+<p>The most significant nibble holds flags, and the low 28 bits store the object id of the parent directory instead of a chunk id (the chunk id of an object header is implicitly 0).</p>
+</div>
+<div class="paragraph">
+<p>The flag bits in the most significant nibble:</p>
+</div>
+<div class="hdlist">
+<table>
+<tr>
+<td class="hdlist1">
+0x8
+</td>
+<td class="hdlist2">
+<p>Always set, to indicate extra tag information is present.</p>
+</td>
+</tr>
+<tr>
+<td class="hdlist1">
+0x4
+</td>
+<td class="hdlist2">
+<p>Set to indicate this object header is a <a href="#_shrink_headers">shrink header</a>.</p>
+</td>
+</tr>
+<tr>
+<td class="hdlist1">
+0x2
+</td>
+<td class="hdlist2">
+<p>Set to indicate this object header <a href="#_shadowing">shadows</a> another object.</p>
+</td>
+</tr>
+<tr>
+<td class="hdlist1">
+0x1
+</td>
+<td class="hdlist2">
+<p>Currently reserved, and should always be unset.</p>
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+</dd>
+<dt class="hdlist1">obj_id</dt>
+<dd>
+<p>The most significant nibble stores the object type (<code>obj_id | (object_type &lt;&lt; 28)</code>).
+The low 28 bits store the object id as usual.</p>
+</dd>
+<dt class="hdlist1">n_bytes</dt>
+<dd>
+<div class="openblock">
+<div class="content">
+<div class="paragraph">
+<p>The value depends on the object type:</p>
+</div>
+<div class="hdlist">
+<table>
+<tr>
+<td class="hdlist1">
+Hardlink
+</td>
+<td class="hdlist2">
+<p>Stores the object id of the object this is hardlinked to.</p>
+</td>
+</tr>
+<tr>
+<td class="hdlist1">
+File
+</td>
+<td class="hdlist2">
+<p>Stores the size of the whole file.
+This field can always hold the full size, because extra tag info is not written for files too large for it: writers fall back to a plain object header, and readers get the size from the header&#8217;s 64 bit <a href="#_file_size">file size</a> fields instead.</p>
+</td>
+</tr>
+<tr>
+<td class="hdlist1">
+Otherwise
+</td>
+<td class="hdlist2">
+<p>Always stores 0</p>
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+</dd>
+</dl>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_tag_ecc">5.2.2. Tag ECC</h4>
 <div class="paragraph">
 <p>If <a href="#_params_tag_ecc">Tag ECC</a> is enabled (and <a href="#_params_inband_tags">Inband Tags</a> are <em>not</em> enabled), the tags are immediately followed by ECC information.
 The ECC implementation is based on the algorithm used in SmartMedia.</p>
@@ -836,17 +1031,866 @@ The ECC implementation is based on the algorithm used in SmartMedia.</p>
 </tbody>
 </table>
 </div>
+<div class="sect3">
+<h4 id="_inband_tags">5.2.3. Inband Tags</h4>
+<div class="paragraph">
+<p>If <a href="#_params_inband_tags">Inband Tags</a> is enabled, the tags are stored at the end of the chunk&#8217;s data area instead of in the spare data:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>data_bytes_per_chunk = total_bytes_per_chunk - 16</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The 16 byte tags structure described in <a href="#_yaffs2">YAFFS2</a> is stored at offset <code>data_bytes_per_chunk</code>, and only the first <code>data_bytes_per_chunk</code> bytes are available to store data.
+<a href="#_tag_ecc">Tag ECC</a> is never used with inband tags, and the spare data area is not used by YAFFS at all (it remains available to the driver, e.g. for ECC).</p>
+</div>
+<div class="admonitionblock warning">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Warning</div>
+</td>
+<td class="content">
+With small chunks (e.g. 512 byte chunks, giving a 496 byte data area), the inband tags overlap the last 16 bytes of the 512 byte <a href="#_object_header">Object Header</a> structure, destroying the <code>file_size_high</code>, <code>shadows_obj</code> and <code>is_shrink</code> fields.
+For this reason the object header duplicates the shadow and shrink information in the <code>inband_shadowed_obj_id</code> and <code>inband_is_shrink</code> fields, which are stored at lower offsets.
+Writers should always store identical values in both copies.
+Readers must take the shadow and shrink information from the <code>inband_</code> fields when inband tags are in use, and from <code>shadows_obj</code>/<code>is_shrink</code> otherwise.
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_special_object_ids">6. Special Object Ids</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A few object ids are reserved:</p>
+</div>
+<table class="tableblock frame-none grid-none stretch">
+<colgroup>
+<col style="width: 5.8823%;">
+<col style="width: 17.647%;">
+<col style="width: 76.4707%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-right valign-top">Value</th>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-right valign-top"><p class="tableblock">1</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Root</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The root directory of the filesystem.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-right valign-top"><p class="tableblock">2</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Lost + Found</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A directory collecting chunks whose object cannot be properly reconstructed.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-right valign-top"><p class="tableblock">3</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Unlinked</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A pseudo-directory for open-but-unlinked files. Objects with this parent are subject to deletion (see <a href="#_deletion">Deletion</a>).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-right valign-top"><p class="tableblock">4</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Deleted</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A pseudo-directory for deleted files. Objects with this parent are deleted (see <a href="#_deletion">Deletion</a>).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-right valign-top"><p class="tableblock">0x10</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Summary</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Marks chunks holding a <a href="#_block_summaries">block summary</a>.</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>The pseudo-directories (ids 1 to 4) exist implicitly and usually have no object header of their own.
+However, an object header <em>may</em> appear for the root or lost+found directories (for example, to record permissions or extended attributes on the root directory).
+Object headers with ids 3, 4 or 0x10 should never describe real objects.</p>
+</div>
+<div class="paragraph">
+<p>Object id 0 is not a valid object id.
+It only appears as a "no object" marker: an object header written for the root directory stores 0 as its <code>parent_obj_id</code>, since the root has no parent (it is <em>not</em> recorded as its own parent).
+Readers should ignore the <code>parent_obj_id</code> of headers for the root and lost+found directories.</p>
+</div>
+<div class="paragraph">
+<p>Normal objects use ids from 256 up to <code>0x3FFFF</code>:
+the entire range below 256 is reserved for special ids, and object ids are limited to 18 bits (see <a href="#_object_header">Object Header</a>).</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+New on-media features using reserved ids have been designed to degrade gracefully in readers that predate them: summary chunks, for example, carry tags that make them look like the data chunks of a small regular file for which no object header is ever written.
+A reader that does not understand summaries reconstructs a stray headerless object that never appears as an actual file on the filesystem, rather than misinterpreting real file data.
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_object_header">7. Object Header</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>An object header is a chunk describing an object, marked by <code>chunk_id == 0</code> in its tags.
+A new object header is written every time an object is created, renamed, resized, or otherwise has its metadata changed.
+Many object headers for the same object id can be present in the filesystem; only the latest one (as ordered by <a href="#_sequence_number">Sequence Number</a>) is current, and all older ones are stale.</p>
+</div>
+<div class="paragraph">
+<p>The data area of an object header chunk contains the following 512 byte structure.
+The rest of the data area is filled with <code>0xFF</code> bytes, except for the optional <a href="#_xattrs">extended attributes</a> and, when <a href="#_inband_tags">Inband Tags</a> are enabled, the tags at the end of the data area.
+Fields that do not apply to the object&#8217;s type are also stored with all bits set (<code>0xFF</code> bytes).</p>
+</div>
+<table class="tableblock frame-none grid-none stretch">
+<colgroup>
+<col style="width: 11.7647%;">
+<col style="width: 11.7647%;">
+<col style="width: 76.4706%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Type</th>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">type</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>The type of this object:</p>
+</div>
+<table class="tableblock frame-none grid-none stretch">
+<colgroup>
+<col style="width: 9.0909%;">
+<col style="width: 90.9091%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-right valign-top">Value</th>
+<th class="tableblock halign-left valign-top">Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-right valign-top"><p class="tableblock">0</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Unknown</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-right valign-top"><p class="tableblock">1</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Regular File</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-right valign-top"><p class="tableblock">2</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Symbolic Link</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-right valign-top"><p class="tableblock">3</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Directory</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-right valign-top"><p class="tableblock">4</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Hard Link</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-right valign-top"><p class="tableblock">5</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Special (device, pipe or socket)</p></td>
+</tr>
+</tbody>
+</table></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">parent_obj_id</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>The object id of the directory containing this object.
+See <a href="#_special_object_ids">Special Object Ids</a> for reserved values, in particular the <code>unlinked</code> and <code>deleted</code> pseudo-directories.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u16</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">checksum</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>An obsolete checksum of the name.
+No longer used, stored as <code>0xFFFF</code>.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u8[256]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">name</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>The name of this object within its parent directory, null-terminated.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u8[2]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">padding</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>Unused padding bytes.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">yst_mode</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>Unix permissions and file type bits, as in the <code>st_mode</code> field of <code>struct stat</code>.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">yst_uid</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>User ID of the owner.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">yst_gid</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>Group ID of the owner.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">yst_atime</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>Nominal access time, as a 32 bit unix timestamp. Not updated by reads; see <a href="#_timestamps">Timestamps</a>.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">yst_mtime</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>Modification time, as a 32 bit unix timestamp. See <a href="#_timestamps">Timestamps</a>.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">yst_ctime</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>Change time, as a 32 bit unix timestamp. See <a href="#_timestamps">Timestamps</a>.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">file_size_low</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>The low 32 bits of the file size.
+Only used for regular files.
+See <a href="#_file_size">File Size</a>.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">s32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">equiv_id</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>Only used for hard links: the object id of the object this hard link is equivalent to.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u8[160]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">alias</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>Only used for symbolic links: the target path, null-terminated.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">yst_rdev</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>Only used for special objects: the system specific device number, as in the <code>st_rdev</code> field of <code>struct stat</code>.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32[2]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">win_ctime</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>Originally intended for WinCE timestamps, now also used to store 64 bit timestamps.
+See <a href="#_timestamps">Timestamps</a>.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32[2]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">win_atime</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>See <code>win_ctime</code>.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32[2]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">win_mtime</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>See <code>win_ctime</code>.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">inband_shadowed_obj_id</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>A second copy of <code>shadows_obj</code> (which inband tags can destroy, see <a href="#_inband_tags">Inband Tags</a>).
+Writers should always store the same value in both fields.
+Readers use this copy if and only if inband tags are enabled, and <code>shadows_obj</code> otherwise.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">inband_is_shrink</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>A second copy of <code>is_shrink</code>, with the same rules as <code>inband_shadowed_obj_id</code>.</p>
+</div>
+<div class="admonitionblock warning">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Warning</div>
+</td>
+<td class="content">
+The reference implementation reads this field when inband tags are enabled, but has never written it: the field is left as erased fill (<code>0xFFFFFFFF</code>). See <a href="https://github.com/Aleph-One-Ltd/yaffs2/issues/18" class="bare">https://github.com/Aleph-One-Ltd/yaffs2/issues/18</a>
+</td>
+</tr>
+</table>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">file_size_high</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>The high 32 bits of the file size.
+For sizes that fit in 32 bits, storing either the actual high bits (0) or <code>0xFFFFFFFF</code> is valid.
+See <a href="#_file_size">File Size</a>.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">reserved</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>Unused.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">s32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">shadows_obj</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>If greater than 0, this object header <a href="#_shadowing">shadows</a> (replaces) the object with this object id.
+Otherwise 0 or -1.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">is_shrink</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>If non-zero, this object header is a <a href="#_shrink_headers">shrink header</a>.</p>
+</div></div></td>
+</tr>
+</tbody>
+</table>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+Object ids are limited to 18 bits (a maximum object id of <code>0x3FFFF</code>), and chunk ids to 28 bits (a maximum chunk id of <code>0xFFFFFFF</code>).
+The requirement that object ids leave the top nibble clear follows from the <a href="#_extra_tag_info">Extra Tag Info</a> encoding, which also limits parent object ids to 28 bits.
+</td>
+</tr>
+</table>
 </div>
 <div class="sect2">
-<h3 id="_object_header">5.3. Object Header</h3>
-
+<h3 id="_timestamps">7.1. Timestamps</h3>
+<div class="paragraph">
+<p>Each of the three timestamps is stored twice: as a 32 bit unix timestamp in <code>yst_atime</code>/<code>yst_mtime</code>/<code>yst_ctime</code>, and as a 64 bit unix timestamp split across the two u32 values of the corresponding <code>win_</code> field (low half first).</p>
+</div>
+<div class="paragraph">
+<p>To read a timestamp, look at the second (high) u32 of the <code>win_</code> field:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If it is <code>0xFFFFFFFF</code>, no 64 bit timestamp is stored; use the 32 bit <code>yst_</code> value.</p>
+</li>
+<li>
+<p>Otherwise, the timestamp is <code>(win[1] &lt;&lt; 32) | win[0]</code>.
+Writers store the low 32 bits in the <code>yst_</code> field as well, so both representations agree.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Despite its name, the access time does not track reads.
+Timestamps are only stored in object headers, and updating the access time on every read would mean writing a new object header for every read: far too much writing (and erasing) for a write-once log.
+Instead, the access time is set equal to the modification time when the object is created, and changes after that only through an explicit request to set file times (e.g. <code>utime()</code>), which writes a new object header.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_file_size">7.2. File Size</h3>
+<div class="paragraph">
+<p>For regular files, the file size is split across <code>file_size_low</code> and <code>file_size_high</code>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If <code>file_size_high</code> is <code>0xFFFFFFFF</code>, the file size is just <code>file_size_low</code>.</p>
+</li>
+<li>
+<p>Otherwise, the file size is <code>(file_size_high &lt;&lt; 32) | file_size_low</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>For a file smaller than 4 GiB, a writer may store either the actual high 32 bits (0) or <code>0xFFFFFFFF</code> in <code>file_size_high</code>; both are equally valid and decode to the same size.
+Current reference writers store the actual high bits; <code>0xFFFFFFFF</code> is what implementations that predate the field leave behind (erased fill), which is why it means "use <code>file_size_low</code> only".</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_xattrs">7.3. Extended Attributes</h3>
+<div class="paragraph">
+<p>Extended attributes are stored in the object header chunk&#8217;s data area, immediately following the header structure, and may use the rest of the data area:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>xattr_size = data_bytes_per_chunk - sizeof(object_header)</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>(This means the chunk data area must be larger than the object header structure for extended attributes to be usable.)</p>
+</div>
+<div class="paragraph">
+<p>The area holds a sequence of name/value records, packed with no padding:</p>
+</div>
+<table class="tableblock frame-none grid-none stretch">
+<colgroup>
+<col style="width: 11.7647%;">
+<col style="width: 11.7647%;">
+<col style="width: 76.4706%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Type</th>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">s32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">size</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>The total size of this record in bytes, including this field.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u8[]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">name</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>The attribute name, null-terminated.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u8[]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">value</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>The attribute value, filling the rest of the record (<code>size</code> minus 4 minus the name bytes).</p>
+</div></div></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>The list ends when the next record&#8217;s <code>size</code> field is not a plausible record size: less than or equal to 0 (<code>0x00000000</code>, or <code>0xFFFFFFFF</code> from the erased fill), or reaching the end of the area or beyond (a record must end strictly before the end of the area to be read).</p>
+</div>
+<div class="paragraph">
+<p>Because a new object header is written whenever an object changes, the extended attributes are rewritten with every header; there is no separate versioning for them.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_block_summaries">8. Block Summaries</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Scanning a YAFFS2 filesystem requires reading the tags of every chunk.
+On real NAND hardware, reading the many small spare data areas is slow.
+To speed this up, YAFFS2 can optionally sacrifice the last few chunks of each block to store a <em>summary</em>: a copy of the tags of all preceding chunks in the block, packed into whole chunks that can be fetched in a few reads.</p>
+</div>
+<div class="paragraph">
+<p>The number of chunks reserved for the summary is (using truncating integer division):</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>chunks_used = (chunks_per_block * 12 + data_bytes_per_chunk - 1) / (data_bytes_per_chunk - 16)
+chunks_per_summary = chunks_per_block - chunks_used</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This arithmetic is almost, but not quite, a ceiling division:
+the rounding term added to the numerator is <code>data_bytes_per_chunk - 1</code> even though the divisor is <code>data_bytes_per_chunk - 16</code>, and the numerator counts all <code>chunks_per_block</code> entries even though only <code>chunks_per_summary</code> are stored.
+Both quirks can reserve one more chunk than strictly needed; over-reserved chunks at the end of the block are simply left unwritten.</p>
+</div>
+<div class="paragraph">
+<p>Writers must reproduce this arithmetic exactly, because the reference implementation reads summaries at the positions it produces.
+Readers have an easier option: summary chunks identify themselves by the reserved summary object id in their tags, so the summary can be found by reading the tags of the last few chunks of the block, and the position of the chunk tagged with <code>chunk_id</code> 1 <em>is</em> <code>chunks_per_summary</code>.</p>
+</div>
+<div class="paragraph">
+<p>The summary data is an array of <code>chunks_per_summary</code> entries, one for each data-carrying chunk in the block (chunks <code>0</code> to <code>chunks_per_summary - 1</code>):</p>
+</div>
+<table class="tableblock frame-none grid-none stretch">
+<colgroup>
+<col style="width: 11.7647%;">
+<col style="width: 11.7647%;">
+<col style="width: 76.4706%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Type</th>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">obj_id</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>The obj_id field of the chunk&#8217;s tags.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">chunk_id</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>The chunk_id field of the chunk&#8217;s tags.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">n_bytes</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>The n_bytes field of the chunk&#8217;s tags.</p>
+</div></div></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>The values are exactly the stored tag values, i.e. the <a href="#_extra_tag_info">Extra Tag Info</a> encoding applies.
+The sequence number is not duplicated, since it is the same for the whole block.</p>
+</div>
+<div class="paragraph">
+<p>This array is written to the reserved chunks (starting at chunk index <code>chunks_per_summary</code>), split into pieces of at most <code>data_bytes_per_chunk - 16</code> bytes.
+The data area of each summary chunk starts with the following 16 byte header, followed by the next piece of the array:</p>
+</div>
+<table class="tableblock frame-none grid-none stretch">
+<colgroup>
+<col style="width: 11.7647%;">
+<col style="width: 11.7647%;">
+<col style="width: 76.4706%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Type</th>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">version</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>The summary format version. Must be 1.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">block</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>The block number of the block this summary describes.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">seq</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>The sequence number of the block.</p>
+</div></div></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">sum</p></td>
+<td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
+<p>The sum of all bytes of the complete summary tags array (across all summary chunks).</p>
+</div></div></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>The same header is repeated in every chunk of the summary.</p>
+</div>
+<div class="paragraph">
+<p>The summary chunks themselves carry normal tags: <code>obj_id</code> is the reserved summary object id <code>0x10</code>, <code>chunk_id</code> counts up from 1, <code>n_bytes</code> is the number of data area bytes used in that chunk (header plus payload), and <code>seq_num</code> is the block&#8217;s sequence number.
+This makes the summary look like the data chunks of a small file.
+However, no object header (chunk 0) is ever written for the summary object id, so this fake file has no name, parent, or metadata, and never appears as an actual file on the filesystem.
+A reader unaware of summaries reconstructs a headerless, hanging object, which may end up in lost+found.</p>
+</div>
+<div class="paragraph">
+<p>A reader should validate a summary before trusting it (the tags of each summary chunk, and the version, block, sequence number and checksum of the header), and fall back to reading the individual chunk tags if validation fails.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_scanning">9. Reading a YAFFS2 Image</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>There is no directory tree or index stored on disk: a reader reconstructs the entire filesystem state by scanning the tags of every chunk.
+Because chunks are never rewritten, the tags plus the write order (recoverable from <a href="#_sequence_number">sequence numbers</a>) fully determine the current state.</p>
+</div>
+<div class="paragraph">
+<p>The reference implementation scans <em>backwards</em>, from newest chunk to oldest, and that is the model described here.
+The fundamental rule is:</p>
+</div>
+<div class="sidebarblock">
+<div class="content">
+<div class="paragraph">
+<p>Scanning blocks in decreasing sequence number order, and chunks within a block from last to first, the <em>first</em> chunk encountered for any given <code>(obj_id, chunk_id)</code> pair is the current version.
+All chunks for the same pair encountered later in the scan are stale and must be ignored.</p>
+</div>
+</div>
+</div>
+<div class="paragraph">
+<p>The same rule applies to object headers, which are the <code>(obj_id, 0)</code> pair (headers with <a href="#_extra_tag_info">Extra Tag Info</a> store their object id in the low bits of <code>obj_id</code> and have an implicit chunk id of 0).</p>
+</div>
+<div class="paragraph">
+<p>This scan order visits chunks exactly newest to oldest, as ordered by <a href="#_sequence_number">Sequence Number</a>.</p>
+</div>
+<div class="sect2">
+<h3 id="_block_pre_scan">9.1. Block Pre-Scan</h3>
+<div class="paragraph">
+<p>First, read the tags of the <em>first</em> chunk of every block:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If the tags are unwritten (all <code>0xFF</code>), the block is empty (or is the block currently being written to; see below).</p>
+</li>
+<li>
+<p>If the sequence number is <code>0x21</code>, the block holds <a href="#_checkpoints">checkpoint data</a> and takes no part in scanning.</p>
+</li>
+<li>
+<p>If the sequence number is <code>0xFFFF0000</code>, the block was retired as bad and takes no part in scanning.</p>
+</li>
+<li>
+<p>Otherwise the block contains data, and the first chunk&#8217;s sequence number is the block&#8217;s sequence number.
+Any sequence number outside the normal range (at least <code>0x1000</code> and below <code>0xEFFFFF00</code>) that the reader does not recognize marks a block that takes no part in scanning, whether it is corruption or a special value from a newer format feature; readers should skip such blocks.
+(This is what allows special sequence numbers like the checkpoint marker to be introduced safely: readers that predate them skip those blocks.)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Then sort the data blocks by sequence number and scan them in decreasing order.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_scanning_a_block">9.2. Scanning a Block</h3>
+<div class="paragraph">
+<p>If <a href="#_block_summaries">Block Summaries</a> are in use, first try to read and validate the block&#8217;s summary; on success, the tags of all data chunks come from the summary and the spare areas need not be read at all.</p>
+</div>
+<div class="paragraph">
+<p>Then, for each chunk from the last data chunk down to chunk 0, read its tags and:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>If the tags are unwritten, the chunk is free space.
+(An unwritten chunk <em>after</em> a written one in the same block means the writer skipped it, e.g. because it failed an erased-check; an unwritten chunk with no written chunks after it means the block was the last one being written, the "allocating" block.)</p>
+</li>
+<li>
+<p>If the tags fail sanity checks (an uncorrectable tags ECC error, an out of range object id or chunk id, a data chunk whose <code>n_bytes</code> is larger than the data area, or a sequence number that doesn&#8217;t match the block&#8217;s), ignore the chunk.
+Chunks tagged with the reserved summary object id (<code>0x10</code>) are also ignored here: summary chunks are only ever read by the summary validation step above, even when that validation fails.</p>
+</li>
+<li>
+<p>If <code>chunk_id &gt; 0</code>, process it as a <a href="#_scan_data_chunks">data chunk</a>.</p>
+</li>
+<li>
+<p>If <code>chunk_id == 0</code> (or the extra tag info flag is set), process it as an <a href="#_scan_object_headers">object header</a>.</p>
+</li>
+</ol>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_scan_data_chunks">9.3. Data Chunks</h3>
+<div class="paragraph">
+<p>A data chunk with id <code>n</code> holds the file&#8217;s bytes starting at offset <code>(n - 1) * data_bytes_per_chunk</code>, of which the first <code>n_bytes</code> are populated.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If a chunk with the same <code>(obj_id, chunk_id)</code> was already seen, this chunk is stale and must be ignored.</p>
+</li>
+<li>
+<p>If the chunk&#8217;s start offset lies at or beyond the object&#8217;s current <em>shrink size</em> (see <a href="#_shrink_headers">Shrink Headers</a>), the chunk is stale data from before a truncation and must be ignored.</p>
+</li>
+<li>
+<p>Until an object header for the object has been seen, the file size is estimated as the maximum of <code>offset + n_bytes</code> over its data chunks.
+Once a header is seen (the header seen first is the newest one), its <a href="#_file_size">file size</a> takes precedence.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Missing chunks are holes: any part of a file not covered by a current data chunk reads as zero bytes.
+A file can be larger than its last data chunk extends; truncating a file to a larger size, or writing after seeking past the end, produces this.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_scan_object_headers">9.4. Object Headers</h3>
+<div class="paragraph">
+<p>The first (newest) object header seen for an object provides all of its metadata: type, parent, name, permissions, timestamps and size.
+Older headers for the same object are ignored, with one exception: shrink information must still be extracted from stale file headers (see <a href="#_shrink_headers">Shrink Headers</a>).</p>
+</div>
+<div class="paragraph">
+<p>If the header carries <a href="#_extra_tag_info">Extra Tag Info</a>, a scanner can build the full directory tree from the tags alone (type, parent, and file size / hardlink target), deferring the read of the header&#8217;s data area until the name or other details are needed.
+The reference implementation calls this <em>lazy loading</em>.</p>
+</div>
+<div class="sect3">
+<h4 id="_deletion">9.4.1. Deletion</h4>
+<div class="paragraph">
+<p>YAFFS deletes an object by writing a new object header for it whose <code>parent_obj_id</code> is one of the reserved pseudo-directories:</p>
+</div>
+<div class="hdlist">
+<table>
+<tr>
+<td class="hdlist1">
+Unlinked (3)
+</td>
+<td class="hdlist2">
+<p>The object has been unlinked while still open; it is deleted once closed.</p>
+</td>
+</tr>
+<tr>
+<td class="hdlist1">
+Deleted (4)
+</td>
+<td class="hdlist2">
+<p>The object is deleted, and its chunks are reclaimable garbage.</p>
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>If the newest header of an object places it in either pseudo-directory, a reader reconstructing the filesystem should treat the object as nonexistent, and all of its chunks as stale.
+Such a header is also treated as an implicit shrink header with size 0, invalidating all older data chunks of the object.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_shrink_headers">9.4.2. Shrink Headers</h4>
+<div class="paragraph">
+<p>When a file is truncated to a smaller size, the data chunks beyond the new size become stale, but they are older than the truncation, so a backwards scanner would otherwise resurrect them.
+To prevent this, the object header written for a truncation has its <code>is_shrink</code> field set.</p>
+</div>
+<div class="paragraph">
+<p>While scanning, a reader maintains a per-file <em>shrink size</em>, initialized to "unlimited":</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>When a shrink header is seen (even a stale one), the shrink size is lowered to the header&#8217;s file size, if smaller.</p>
+</li>
+<li>
+<p>The <em>newest</em> header of a file lowers the shrink size to its file size even without the shrink flag: data chunks beyond the current file size are necessarily stale.</p>
+</li>
+<li>
+<p>Headers placing the file in the unlinked/deleted pseudo-directories lower the shrink size to 0.</p>
+</li>
+<li>
+<p>Data chunks starting at or beyond the current shrink size are ignored (see <a href="#_scan_data_chunks">Data Chunks</a>).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Shrink headers also constrain the garbage collector at runtime (blocks containing them cannot be erased as freely), which is why they are only written for actual truncations, not for every header update.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+When <a href="#_inband_tags">Inband Tags</a> are enabled, the shrink flag must be read from the <code>inband_is_shrink</code> field of the header rather than <code>is_shrink</code>.
+</td>
+</tr>
+</table>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_shadowing">9.4.3. Shadowing</h4>
+<div class="paragraph">
+<p>A rename that overwrites an existing target must atomically delete the target object.
+YAFFS implements this by writing the renamed object&#8217;s new header with the <code>shadows_obj</code> field set to the object id of the replaced target (and the shadows flag set in the <a href="#_extra_tag_info">Extra Tag Info</a>, if present).</p>
+</div>
+<div class="paragraph">
+<p>When a scanner encounters a header that shadows object <code>X</code>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If object <code>X</code> has already been seen in the scan, a newer version of <code>X</code> exists and the shadowing is outdated; ignore it.</p>
+</li>
+<li>
+<p>Otherwise, object <code>X</code> is deleted as of this point in the log: treat <code>X</code> like a deleted object (all its older chunks are stale).</p>
+</li>
+</ul>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+When <a href="#_inband_tags">Inband Tags</a> are enabled, the shadowed object id must be read from the <code>inband_shadowed_obj_id</code> field of the header rather than <code>shadows_obj</code>.
+</td>
+</tr>
+</table>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_hard_links">9.4.4. Hard Links</h4>
+<div class="paragraph">
+<p>A hard link is a distinct object (with its own object id, name and parent) whose header stores the object id of the object it links to in <code>equiv_id</code>.
+Since a hard link may be scanned before the object it points to, readers should collect hard links during the scan and resolve them once scanning completes.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_checkpoints">9.5. Checkpoints</h3>
+<div class="paragraph">
+<p>On a clean unmount, the reference implementation can write a <em>checkpoint</em>: a serialized dump of its runtime state that allows the next mount to skip scanning entirely.
+Checkpoint data is written to otherwise erased blocks using the reserved sequence number <code>0x21</code>, which is the only marker identifying a checkpoint block.
+The tags of checkpoint chunks do not follow the normal rules described in this document; even the <code>obj_id</code> field is repurposed for checkpoint-internal bookkeeping.</p>
+</div>
+<div class="paragraph">
+<p>The checkpoint format is not specified here: it is a direct serialization of implementation structures and changes between versions and configurations.
+The checkpoint is invalidated (its blocks erased) as soon as the filesystem is written to again, so readers can always treat checkpoint blocks as opaque, skip them, and reconstruct the filesystem by scanning as described above.</p>
+</div>
 </div>
 </div>
 </div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-07-03 00:39:34 -0400
+Last updated 2026-07-08 01:36:41 -0400
 </div>
 </div>
 </body>

@@ -42,7 +42,7 @@ Spare Data is used to store tags associated with the chunk (usually, see <<_para
 --
 
 Block::
-A block is a collection of entries, typically 32 to 128 but as many as a few hundred.
+A block is a collection of chunks, typically 32 to 128 but as many as a few hundred.
 A block is the unit of erasure.
 
 Object::
@@ -69,12 +69,59 @@ The exact data stored is different between YAFFS1 and YAFFS2.
 Tags are stored in spare data, unless configured to be stored inband (because spare data is too small).
 --
 
+[[_sequence_number]]Sequence Number::
++
+--
+Every block is assigned a sequence number when it is allocated for writing.
+Sequence numbers increase monotonically over the life of the filesystem, so they record the order in which blocks were written.
+All chunks in a block store the block's sequence number in their tags.
+Since YAFFS2 never rewrites chunks in place, the sequence number is what allows a reader to reconstruct the order of events in the log (see <<_scanning>>).
+
+Chunks within a block are written in order, from the first chunk to the last.
+This totally orders all chunks in the filesystem: a chunk is _newer_ than another if its block has a higher sequence number, or if it is later within the same block (all chunks in a block share the same sequence number).
+Whenever this document refers to the "latest" or "newest" version of something, it means the latest by this order.
+
+Normal sequence numbers are at least `0x00001000` and strictly below `0xEFFFFF00`.
+Values outside this range are special:
+
+[horizontal]
+`0x00000021`:: The block holds <<_checkpoints,checkpoint data>>, not regular chunks.
+`0xFFFF0000`:: The block is bad.
+When a block fails and the driver-level bad block marking also fails, the block is erased and its first chunk rewritten with this sequence number (and zeroes in the other tag fields) so the block can still be recognized as bad.
+`0xFFFFFFFF`:: All-ones is not a real sequence number: an erased chunk reads as all `0xFF` bytes, so tags with an all-ones sequence number indicate an unwritten chunk.
+--
+
 == Overview
 
 A YAFFS filesystem is simply a collection of blocks.
 There is no overall metadata or header.
 Because YAFFS is a log-structured filesystem, multiple versions of the same chunks can appear.
-In general, the "latest" version of each chunk "wins", earlier versions of the same chunk are ignored.
+The latest version of each chunk wins, and all earlier versions are ignored (see <<_sequence_number,Sequence Number>> for how chunks are ordered).
+
+=== Image Layout
+
+On NAND hardware, the data area of a chunk is stored in a page and the spare data is stored in the page's out of band (OOB) area.
+When YAFFS is stored as an image file, each chunk's data area is followed immediately by its spare data area.
+Chunks appear in order within a block, and blocks appear in order.
+
+A freshly erased block reads as all `0xFF` bytes.
+Anything that would be all `0xFF` (a whole block, a single chunk, or the tags of a chunk) is considered unwritten.
+
+All structures described in this document are byte packed:
+fields are stored consecutively with no implicit alignment padding.
+Where padding exists on disk, it is listed explicitly as a field.
+
+=== Endianness
+
+YAFFS stores all integers in the native byte order of the system that wrote the filesystem.
+Images are most commonly little endian, and all layouts in this document assume little endian storage.
+A reader that supports both byte orders can detect a byte-swapped filesystem by sanity checking values it reads (for example, sequence numbers and object types have small valid ranges).
+
+=== Error Correction
+
+Except for the optional <<_tag_ecc>> covering the tags themselves, error correction is not part of the YAFFS2 format:
+ECC for the data area of a chunk is the responsibility of the flash driver or MTD layer.
+When reading an image file rather than physical flash, no ECC processing is needed.
 
 == Parameters
 
@@ -90,14 +137,20 @@ Spare Bytes Per Chunk::
 The number of bytes available for Spare Data out of band, associated with each chunk.
 
 Chunks Per Block::
-The number of chunks per block
+The number of chunks per block.
 
 [[_params_inband_tags]]Inband Tags::
-Flag indicating whether tags should be stored in the data area.
+Flag indicating whether tags should be stored in the data area rather than in the Spare Data.
+See <<_inband_tags>> for details.
 
 [[_params_tag_ecc]]Tag ECC::
 Flag indicating whether tags are followed by ECC (Error Correction Code).
 If <<_params_inband_tags>> are enabled, this is always disabled.
+See <<_tag_ecc>> for details.
+
+[[_params_summaries]]Summaries::
+Flag indicating whether <<_block_summaries>> are written to the end of each block.
+A reader can also detect summaries by their reserved object id (see <<_special_object_ids>>).
 
 == Tags Format
 
@@ -113,46 +166,73 @@ This document is currently focused on YAFFS2, and does not document YAFFS1 fully
 
 | u32 | seq_num
 |
-Sequence Number for this chunk.
+<<_sequence_number,Sequence Number>> for this chunk.
 Should be the same for all (written) chunks in a block.
+
+A value of `0xFFFFFFFF` (all bits set) indicates the chunk was never written.
 
 | u32 | obj_id
 |
-The id of the the object this chunk is related to.
+The id of the object this chunk is related to.
 
-Additionally, the most significant nibble of this value _can_ be used to store the object type (`obj_id \| (object_type << 28)`).
-This should only be done if the chunk_id field indicates <<_extra_tag_info>> is present.
+If <<_extra_tag_info>> is present, the most significant nibble stores the object type instead of being part of the object id.
 
 | u32 | chunk_id
 |
 Identifies where in the file this chunk belongs.
 `chunk_id==0` signifies this chunk is an <<_object_header>>.
-`chunk_id==1` signifies this is first chunk in the file (ie. At file offset 0), `chunk_id==2` is the next chunk and so on.
+`chunk_id==1` signifies this is the first chunk in the file (ie. At file offset 0), `chunk_id==2` is the next chunk and so on.
 
-[#_extra_tag_info,reftext=Extra Tag Info]
-Additionally, the most significant nibble of the stored value may be used to store extra info.
-This should only be present for <<_object_header,Object Headers>>.
-This also must not be set if this object is a file whose size in bytes cannot fit in 31 bits.
-The following bits can be set in the most significant nibble:
-
-0x8:: This bit is always set to indicate extra tag information is set
-// TODO: Document this
-0x4:: This bit is set to indicate the "shrink" flag is set.
-// TODO: Document this
-0x2:: This bit is set to indicate the "shadows" flag is set.
-0x1:: This bit is currently reserved, and should always be unset.
+If the most significant bit is set, this chunk is an object header whose tags carry <<_extra_tag_info>>, and the rest of the field is interpreted differently.
 
 | u32 | n_bytes
 |
 The populated size of this Data Chunk.
-If this is not a Data Chunk, the value is ignored (usually stored with all bits set), unless the chunk_id field indicates <<_extra_tag_info>> is present.
-If <<_extra_tag_info>> is present, the value is based on the object type:
-
-Hardlink:: Stores the object id of the object this is hardlinked to.
-File:: Stores the size of the whole file.
-Otherwise:: Always stores 0
+If this is not a Data Chunk, the value is ignored, unless <<_extra_tag_info>> is present.
 |===
 
+[#_extra_tag_info]
+==== Extra Tag Info
+
+The tags of an object header chunk may duplicate key fields of the <<_object_header>>, so that a scanner can reconstruct the directory tree from tags alone, without reading the data area of most object header chunks (see <<_scanning>>).
+
+Extra tag info is present if and only if the most significant bit of the `chunk_id` field is set (`chunk_id & 0x80000000 != 0`).
+
+Extra tag info should only be present on <<_object_header,Object Header>> chunks, and must not be used if the object is a file whose size in bytes cannot fit in 31 bits.
+When present, the tag fields are reinterpreted as follows:
+
+chunk_id::
++
+--
+The most significant nibble holds flags, and the low 28 bits store the object id of the parent directory instead of a chunk id (the chunk id of an object header is implicitly 0).
+
+The flag bits in the most significant nibble:
+
+[horizontal]
+0x8:: Always set, to indicate extra tag information is present.
+0x4:: Set to indicate this object header is a <<_shrink_headers,shrink header>>.
+0x2:: Set to indicate this object header <<_shadowing,shadows>> another object.
+0x1:: Currently reserved, and should always be unset.
+--
+
+obj_id::
+The most significant nibble stores the object type (`obj_id | (object_type << 28)`).
+The low 28 bits store the object id as usual.
+
+n_bytes::
++
+--
+The value depends on the object type:
+
+[horizontal]
+Hardlink:: Stores the object id of the object this is hardlinked to.
+File::
+Stores the size of the whole file.
+This field can always hold the full size, because extra tag info is not written for files too large for it: writers fall back to a plain object header, and readers get the size from the header's 64 bit <<_file_size,file size>> fields instead.
+Otherwise:: Always stores 0
+--
+
+[#_tag_ecc]
 ==== Tag ECC
 
 If <<_params_tag_ecc>> is enabled (and <<_params_inband_tags>> are _not_ enabled), the tags are immediately followed by ECC information.
@@ -184,5 +264,386 @@ The XOR of _indexes_ with an odd number of bits set in the byte.
 The XOR of the bitwise inverse of _indexes_ with an odd number of bits set in the byte.
 |===
 
+[#_inband_tags]
+==== Inband Tags
+
+If <<_params_inband_tags>> is enabled, the tags are stored at the end of the chunk's data area instead of in the spare data:
+
+  data_bytes_per_chunk = total_bytes_per_chunk - 16
+
+The 16 byte tags structure described in <<_yaffs2>> is stored at offset `data_bytes_per_chunk`, and only the first `data_bytes_per_chunk` bytes are available to store data.
+<<_tag_ecc,Tag ECC>> is never used with inband tags, and the spare data area is not used by YAFFS at all (it remains available to the driver, e.g. for ECC).
+
+WARNING: With small chunks (e.g. 512 byte chunks, giving a 496 byte data area), the inband tags overlap the last 16 bytes of the 512 byte <<_object_header>> structure, destroying the `file_size_high`, `shadows_obj` and `is_shrink` fields.
+For this reason the object header duplicates the shadow and shrink information in the `inband_shadowed_obj_id` and `inband_is_shrink` fields, which are stored at lower offsets.
+Writers should always store identical values in both copies.
+Readers must take the shadow and shrink information from the `inband_` fields when inband tags are in use, and from `shadows_obj`/`is_shrink` otherwise.
+
+[#_special_object_ids]
+== Special Object Ids
+
+A few object ids are reserved:
+
+[cols=">1,3,13",frame="none",grid="none",options="header"]
+|===
+| Value | Name | Description
+| 1 | Root | The root directory of the filesystem.
+| 2 | Lost + Found | A directory collecting chunks whose object cannot be properly reconstructed.
+| 3 | Unlinked | A pseudo-directory for open-but-unlinked files. Objects with this parent are subject to deletion (see <<_deletion>>).
+| 4 | Deleted | A pseudo-directory for deleted files. Objects with this parent are deleted (see <<_deletion>>).
+| 0x10 | Summary | Marks chunks holding a <<_block_summaries,block summary>>.
+|===
+
+The pseudo-directories (ids 1 to 4) exist implicitly and usually have no object header of their own.
+However, an object header _may_ appear for the root or lost+found directories (for example, to record permissions or extended attributes on the root directory).
+Object headers with ids 3, 4 or 0x10 should never describe real objects.
+
+Object id 0 is not a valid object id.
+It only appears as a "no object" marker: an object header written for the root directory stores 0 as its `parent_obj_id`, since the root has no parent (it is _not_ recorded as its own parent).
+Readers should ignore the `parent_obj_id` of headers for the root and lost+found directories.
+
+Normal objects use ids from 256 up to `0x3FFFF`:
+the entire range below 256 is reserved for special ids, and object ids are limited to 18 bits (see <<_object_header>>).
+
+NOTE: New on-media features using reserved ids have been designed to degrade gracefully in readers that predate them: summary chunks, for example, carry tags that make them look like the data chunks of a small regular file for which no object header is ever written.
+A reader that does not understand summaries reconstructs a stray headerless object that never appears as an actual file on the filesystem, rather than misinterpreting real file data.
+
 [#_object_header]
-=== Object Header
+== Object Header
+
+An object header is a chunk describing an object, marked by `chunk_id == 0` in its tags.
+A new object header is written every time an object is created, renamed, resized, or otherwise has its metadata changed.
+Many object headers for the same object id can be present in the filesystem; only the latest one (as ordered by <<_sequence_number,Sequence Number>>) is current, and all older ones are stale.
+
+The data area of an object header chunk contains the following 512 byte structure.
+The rest of the data area is filled with `0xFF` bytes, except for the optional <<_xattrs,extended attributes>> and, when <<_inband_tags>> are enabled, the tags at the end of the data area.
+Fields that do not apply to the object's type are also stored with all bits set (`0xFF` bytes).
+
+[cols="2,2,13a",frame="none",grid="none",options="header"]
+|===
+| Type | Name | Description
+
+| u32 | type
+|
+The type of this object:
+
+[cols=">1,10",frame="none",grid="none",options="header"]
+!===
+! Value ! Type
+! 0 ! Unknown
+! 1 ! Regular File
+! 2 ! Symbolic Link
+! 3 ! Directory
+! 4 ! Hard Link
+! 5 ! Special (device, pipe or socket)
+!===
+
+| u32 | parent_obj_id
+|
+The object id of the directory containing this object.
+See <<_special_object_ids>> for reserved values, in particular the `unlinked` and `deleted` pseudo-directories.
+
+| u16 | checksum
+|
+An obsolete checksum of the name.
+No longer used, stored as `0xFFFF`.
+
+| u8[256] | name
+|
+The name of this object within its parent directory, null-terminated.
+
+| u8[2] | padding | Unused padding bytes.
+
+| u32 | yst_mode
+|
+Unix permissions and file type bits, as in the `st_mode` field of `struct stat`.
+
+| u32 | yst_uid | User ID of the owner.
+| u32 | yst_gid | Group ID of the owner.
+| u32 | yst_atime | Nominal access time, as a 32 bit unix timestamp. Not updated by reads; see <<_timestamps>>.
+| u32 | yst_mtime | Modification time, as a 32 bit unix timestamp. See <<_timestamps>>.
+| u32 | yst_ctime | Change time, as a 32 bit unix timestamp. See <<_timestamps>>.
+
+| u32 | file_size_low
+|
+The low 32 bits of the file size.
+Only used for regular files.
+See <<_file_size>>.
+
+| s32 | equiv_id
+|
+Only used for hard links: the object id of the object this hard link is equivalent to.
+
+| u8[160] | alias
+|
+Only used for symbolic links: the target path, null-terminated.
+
+| u32 | yst_rdev
+|
+Only used for special objects: the system specific device number, as in the `st_rdev` field of `struct stat`.
+
+| u32[2] | win_ctime
+|
+Originally intended for WinCE timestamps, now also used to store 64 bit timestamps.
+See <<_timestamps>>.
+
+| u32[2] | win_atime | See `win_ctime`.
+| u32[2] | win_mtime | See `win_ctime`.
+
+| u32 | inband_shadowed_obj_id
+|
+A second copy of `shadows_obj` (which inband tags can destroy, see <<_inband_tags>>).
+Writers should always store the same value in both fields.
+Readers use this copy if and only if inband tags are enabled, and `shadows_obj` otherwise.
+
+| u32 | inband_is_shrink
+|
+A second copy of `is_shrink`, with the same rules as `inband_shadowed_obj_id`.
+
+WARNING: The reference implementation reads this field when inband tags are enabled, but has never written it: the field is left as erased fill (`0xFFFFFFFF`). See https://github.com/Aleph-One-Ltd/yaffs2/issues/18
+
+| u32 | file_size_high
+|
+The high 32 bits of the file size.
+For sizes that fit in 32 bits, storing either the actual high bits (0) or `0xFFFFFFFF` is valid.
+See <<_file_size>>.
+
+| u32 | reserved | Unused.
+
+| s32 | shadows_obj
+|
+If greater than 0, this object header <<_shadowing,shadows>> (replaces) the object with this object id.
+Otherwise 0 or -1.
+
+| u32 | is_shrink
+|
+If non-zero, this object header is a <<_shrink_headers,shrink header>>.
+|===
+
+NOTE: Object ids are limited to 18 bits (a maximum object id of `0x3FFFF`), and chunk ids to 28 bits (a maximum chunk id of `0xFFFFFFF`).
+The requirement that object ids leave the top nibble clear follows from the <<_extra_tag_info>> encoding, which also limits parent object ids to 28 bits.
+
+[#_timestamps]
+=== Timestamps
+
+Each of the three timestamps is stored twice: as a 32 bit unix timestamp in `yst_atime`/`yst_mtime`/`yst_ctime`, and as a 64 bit unix timestamp split across the two u32 values of the corresponding `win_` field (low half first).
+
+To read a timestamp, look at the second (high) u32 of the `win_` field:
+
+- If it is `0xFFFFFFFF`, no 64 bit timestamp is stored; use the 32 bit `yst_` value.
+- Otherwise, the timestamp is `(win[1] << 32) | win[0]`.
+Writers store the low 32 bits in the `yst_` field as well, so both representations agree.
+
+Despite its name, the access time does not track reads.
+Timestamps are only stored in object headers, and updating the access time on every read would mean writing a new object header for every read: far too much writing (and erasing) for a write-once log.
+Instead, the access time is set equal to the modification time when the object is created, and changes after that only through an explicit request to set file times (e.g. `utime()`), which writes a new object header.
+
+[#_file_size]
+=== File Size
+
+For regular files, the file size is split across `file_size_low` and `file_size_high`:
+
+- If `file_size_high` is `0xFFFFFFFF`, the file size is just `file_size_low`.
+- Otherwise, the file size is `(file_size_high << 32) | file_size_low`.
+
+For a file smaller than 4 GiB, a writer may store either the actual high 32 bits (0) or `0xFFFFFFFF` in `file_size_high`; both are equally valid and decode to the same size.
+Current reference writers store the actual high bits; `0xFFFFFFFF` is what implementations that predate the field leave behind (erased fill), which is why it means "use `file_size_low` only".
+
+[#_xattrs]
+=== Extended Attributes
+
+Extended attributes are stored in the object header chunk's data area, immediately following the header structure, and may use the rest of the data area:
+
+  xattr_size = data_bytes_per_chunk - sizeof(object_header)
+
+(This means the chunk data area must be larger than the object header structure for extended attributes to be usable.)
+
+The area holds a sequence of name/value records, packed with no padding:
+
+[cols="2,2,13a",frame="none",grid="none",options="header"]
+|===
+| Type | Name | Description
+| s32 | size | The total size of this record in bytes, including this field.
+| u8[] | name | The attribute name, null-terminated.
+| u8[] | value | The attribute value, filling the rest of the record (`size` minus 4 minus the name bytes).
+|===
+
+The list ends when the next record's `size` field is not a plausible record size: less than or equal to 0 (`0x00000000`, or `0xFFFFFFFF` from the erased fill), or reaching the end of the area or beyond (a record must end strictly before the end of the area to be read).
+
+Because a new object header is written whenever an object changes, the extended attributes are rewritten with every header; there is no separate versioning for them.
+
+[#_block_summaries]
+== Block Summaries
+
+Scanning a YAFFS2 filesystem requires reading the tags of every chunk.
+On real NAND hardware, reading the many small spare data areas is slow.
+To speed this up, YAFFS2 can optionally sacrifice the last few chunks of each block to store a _summary_: a copy of the tags of all preceding chunks in the block, packed into whole chunks that can be fetched in a few reads.
+
+The number of chunks reserved for the summary is (using truncating integer division):
+
+  chunks_used = (chunks_per_block * 12 + data_bytes_per_chunk - 1) / (data_bytes_per_chunk - 16)
+  chunks_per_summary = chunks_per_block - chunks_used
+
+This arithmetic is almost, but not quite, a ceiling division:
+the rounding term added to the numerator is `data_bytes_per_chunk - 1` even though the divisor is `data_bytes_per_chunk - 16`, and the numerator counts all `chunks_per_block` entries even though only `chunks_per_summary` are stored.
+Both quirks can reserve one more chunk than strictly needed; over-reserved chunks at the end of the block are simply left unwritten.
+
+Writers must reproduce this arithmetic exactly, because the reference implementation reads summaries at the positions it produces.
+Readers have an easier option: summary chunks identify themselves by the reserved summary object id in their tags, so the summary can be found by reading the tags of the last few chunks of the block, and the position of the chunk tagged with `chunk_id` 1 _is_ `chunks_per_summary`.
+
+The summary data is an array of `chunks_per_summary` entries, one for each data-carrying chunk in the block (chunks `0` to `chunks_per_summary - 1`):
+
+[cols="2,2,13a",frame="none",grid="none",options="header"]
+|===
+| Type | Name | Description
+| u32 | obj_id | The obj_id field of the chunk's tags.
+| u32 | chunk_id | The chunk_id field of the chunk's tags.
+| u32 | n_bytes | The n_bytes field of the chunk's tags.
+|===
+
+The values are exactly the stored tag values, i.e. the <<_extra_tag_info>> encoding applies.
+The sequence number is not duplicated, since it is the same for the whole block.
+
+This array is written to the reserved chunks (starting at chunk index `chunks_per_summary`), split into pieces of at most `data_bytes_per_chunk - 16` bytes.
+The data area of each summary chunk starts with the following 16 byte header, followed by the next piece of the array:
+
+[cols="2,2,13a",frame="none",grid="none",options="header"]
+|===
+| Type | Name | Description
+| u32 | version | The summary format version. Must be 1.
+| u32 | block | The block number of the block this summary describes.
+| u32 | seq | The sequence number of the block.
+| u32 | sum | The sum of all bytes of the complete summary tags array (across all summary chunks).
+|===
+
+The same header is repeated in every chunk of the summary.
+
+The summary chunks themselves carry normal tags: `obj_id` is the reserved summary object id `0x10`, `chunk_id` counts up from 1, `n_bytes` is the number of data area bytes used in that chunk (header plus payload), and `seq_num` is the block's sequence number.
+This makes the summary look like the data chunks of a small file.
+However, no object header (chunk 0) is ever written for the summary object id, so this fake file has no name, parent, or metadata, and never appears as an actual file on the filesystem.
+A reader unaware of summaries reconstructs a headerless, hanging object, which may end up in lost+found.
+
+A reader should validate a summary before trusting it (the tags of each summary chunk, and the version, block, sequence number and checksum of the header), and fall back to reading the individual chunk tags if validation fails.
+
+[#_scanning]
+== Reading a YAFFS2 Image
+
+There is no directory tree or index stored on disk: a reader reconstructs the entire filesystem state by scanning the tags of every chunk.
+Because chunks are never rewritten, the tags plus the write order (recoverable from <<_sequence_number,sequence numbers>>) fully determine the current state.
+
+The reference implementation scans _backwards_, from newest chunk to oldest, and that is the model described here.
+The fundamental rule is:
+
+****
+Scanning blocks in decreasing sequence number order, and chunks within a block from last to first, the _first_ chunk encountered for any given `(obj_id, chunk_id)` pair is the current version.
+All chunks for the same pair encountered later in the scan are stale and must be ignored.
+****
+
+The same rule applies to object headers, which are the `(obj_id, 0)` pair (headers with <<_extra_tag_info>> store their object id in the low bits of `obj_id` and have an implicit chunk id of 0).
+
+This scan order visits chunks exactly newest to oldest, as ordered by <<_sequence_number,Sequence Number>>.
+
+=== Block Pre-Scan
+
+First, read the tags of the _first_ chunk of every block:
+
+- If the tags are unwritten (all `0xFF`), the block is empty (or is the block currently being written to; see below).
+- If the sequence number is `0x21`, the block holds <<_checkpoints,checkpoint data>> and takes no part in scanning.
+- If the sequence number is `0xFFFF0000`, the block was retired as bad and takes no part in scanning.
+- Otherwise the block contains data, and the first chunk's sequence number is the block's sequence number.
+Any sequence number outside the normal range (at least `0x1000` and below `0xEFFFFF00`) that the reader does not recognize marks a block that takes no part in scanning, whether it is corruption or a special value from a newer format feature; readers should skip such blocks.
+(This is what allows special sequence numbers like the checkpoint marker to be introduced safely: readers that predate them skip those blocks.)
+
+Then sort the data blocks by sequence number and scan them in decreasing order.
+
+=== Scanning a Block
+
+If <<_block_summaries>> are in use, first try to read and validate the block's summary; on success, the tags of all data chunks come from the summary and the spare areas need not be read at all.
+
+Then, for each chunk from the last data chunk down to chunk 0, read its tags and:
+
+. If the tags are unwritten, the chunk is free space.
+(An unwritten chunk _after_ a written one in the same block means the writer skipped it, e.g. because it failed an erased-check; an unwritten chunk with no written chunks after it means the block was the last one being written, the "allocating" block.)
+. If the tags fail sanity checks (an uncorrectable tags ECC error, an out of range object id or chunk id, a data chunk whose `n_bytes` is larger than the data area, or a sequence number that doesn't match the block's), ignore the chunk.
+Chunks tagged with the reserved summary object id (`0x10`) are also ignored here: summary chunks are only ever read by the summary validation step above, even when that validation fails.
+. If `chunk_id > 0`, process it as a <<_scan_data_chunks,data chunk>>.
+. If `chunk_id == 0` (or the extra tag info flag is set), process it as an <<_scan_object_headers,object header>>.
+
+[#_scan_data_chunks]
+=== Data Chunks
+
+A data chunk with id `n` holds the file's bytes starting at offset `(n - 1) * data_bytes_per_chunk`, of which the first `n_bytes` are populated.
+
+- If a chunk with the same `(obj_id, chunk_id)` was already seen, this chunk is stale and must be ignored.
+- If the chunk's start offset lies at or beyond the object's current _shrink size_ (see <<_shrink_headers>>), the chunk is stale data from before a truncation and must be ignored.
+- Until an object header for the object has been seen, the file size is estimated as the maximum of `offset + n_bytes` over its data chunks.
+Once a header is seen (the header seen first is the newest one), its <<_file_size,file size>> takes precedence.
+
+Missing chunks are holes: any part of a file not covered by a current data chunk reads as zero bytes.
+A file can be larger than its last data chunk extends; truncating a file to a larger size, or writing after seeking past the end, produces this.
+
+[#_scan_object_headers]
+=== Object Headers
+
+The first (newest) object header seen for an object provides all of its metadata: type, parent, name, permissions, timestamps and size.
+Older headers for the same object are ignored, with one exception: shrink information must still be extracted from stale file headers (see <<_shrink_headers>>).
+
+If the header carries <<_extra_tag_info>>, a scanner can build the full directory tree from the tags alone (type, parent, and file size / hardlink target), deferring the read of the header's data area until the name or other details are needed.
+The reference implementation calls this _lazy loading_.
+
+[#_deletion]
+==== Deletion
+
+YAFFS deletes an object by writing a new object header for it whose `parent_obj_id` is one of the reserved pseudo-directories:
+
+[horizontal]
+Unlinked (3):: The object has been unlinked while still open; it is deleted once closed.
+Deleted (4):: The object is deleted, and its chunks are reclaimable garbage.
+
+If the newest header of an object places it in either pseudo-directory, a reader reconstructing the filesystem should treat the object as nonexistent, and all of its chunks as stale.
+Such a header is also treated as an implicit shrink header with size 0, invalidating all older data chunks of the object.
+
+[#_shrink_headers]
+==== Shrink Headers
+
+When a file is truncated to a smaller size, the data chunks beyond the new size become stale, but they are older than the truncation, so a backwards scanner would otherwise resurrect them.
+To prevent this, the object header written for a truncation has its `is_shrink` field set.
+
+While scanning, a reader maintains a per-file _shrink size_, initialized to "unlimited":
+
+- When a shrink header is seen (even a stale one), the shrink size is lowered to the header's file size, if smaller.
+- The _newest_ header of a file lowers the shrink size to its file size even without the shrink flag: data chunks beyond the current file size are necessarily stale.
+- Headers placing the file in the unlinked/deleted pseudo-directories lower the shrink size to 0.
+- Data chunks starting at or beyond the current shrink size are ignored (see <<_scan_data_chunks>>).
+
+Shrink headers also constrain the garbage collector at runtime (blocks containing them cannot be erased as freely), which is why they are only written for actual truncations, not for every header update.
+
+NOTE: When <<_inband_tags>> are enabled, the shrink flag must be read from the `inband_is_shrink` field of the header rather than `is_shrink`.
+
+[#_shadowing]
+==== Shadowing
+
+A rename that overwrites an existing target must atomically delete the target object.
+YAFFS implements this by writing the renamed object's new header with the `shadows_obj` field set to the object id of the replaced target (and the shadows flag set in the <<_extra_tag_info>>, if present).
+
+When a scanner encounters a header that shadows object `X`:
+
+- If object `X` has already been seen in the scan, a newer version of `X` exists and the shadowing is outdated; ignore it.
+- Otherwise, object `X` is deleted as of this point in the log: treat `X` like a deleted object (all its older chunks are stale).
+
+NOTE: When <<_inband_tags>> are enabled, the shadowed object id must be read from the `inband_shadowed_obj_id` field of the header rather than `shadows_obj`.
+
+==== Hard Links
+
+A hard link is a distinct object (with its own object id, name and parent) whose header stores the object id of the object it links to in `equiv_id`.
+Since a hard link may be scanned before the object it points to, readers should collect hard links during the scan and resolve them once scanning completes.
+
+[#_checkpoints]
+=== Checkpoints
+
+On a clean unmount, the reference implementation can write a _checkpoint_: a serialized dump of its runtime state that allows the next mount to skip scanning entirely.
+Checkpoint data is written to otherwise erased blocks using the reserved sequence number `0x21`, which is the only marker identifying a checkpoint block.
+The tags of checkpoint chunks do not follow the normal rules described in this document; even the `obj_id` field is repurposed for checkpoint-internal bookkeeping.
+
+The checkpoint format is not specified here: it is a direct serialization of implementation structures and changes between versions and configurations.
+The checkpoint is invalidated (its blocks erased) as soon as the filesystem is written to again, so readers can always treat checkpoint blocks as opaque, skip them, and reconstruct the filesystem by scanning as described above.
