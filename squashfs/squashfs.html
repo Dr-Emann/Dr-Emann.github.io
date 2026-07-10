@@ -2196,7 +2196,7 @@ The layout is identical for both character and block devices:</p>
 <div class="literalblock">
 <div class="content">
 <pre>major = (dev &amp; 0xFFF00) &gt;&gt; 8.
-minor = (dev &amp; 0x000FF)</pre>
+minor = (dev &amp; 0x000FF) | ((dev &gt;&gt; 12) &amp; 0xFFF00)</pre>
 </div>
 </div></div></td>
 </tr>
@@ -2939,7 +2939,7 @@ pairs and their total, uncompressed size.</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2024-03-23 20:24:45 -0400
+Last updated 2026-07-09 22:54:10 -0400
 </div>
 </div>
 </body>

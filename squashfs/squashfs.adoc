@@ -743,7 +743,7 @@ The layout is identical for both character and block devices:
                         numbers that can be extracted as follows:
 
                           major = (dev & 0xFFF00) >> 8.
-                          minor = (dev & 0x000FF) | ((dev >> 12) & 0xFFF00)
+                          minor = (dev & 0x000FF) \| ((dev >> 12) & 0xFFF00)
 |===
 
 The extended device file inode adds an additional extended attribute index:

@@ -452,12 +452,11 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_parameters">4. Parameters</a></li>
 <li><a href="#_tags_format">5. Tags Format</a>
 <ul class="sectlevel2">
-<li><a href="#_yaffs1">5.1. YAFFS1</a></li>
-<li><a href="#_yaffs2">5.2. YAFFS2</a>
+<li><a href="#_yaffs2">5.1. YAFFS2</a>
 <ul class="sectlevel3">
-<li><a href="#_extra_tag_info">5.2.1. Extra Tag Info</a></li>
-<li><a href="#_tag_ecc">5.2.2. Tag ECC</a></li>
-<li><a href="#_inband_tags">5.2.3. Inband Tags</a></li>
+<li><a href="#_extra_tag_info">5.1.1. Extra Tag Info</a></li>
+<li><a href="#_tag_ecc">5.1.2. Tag ECC</a></li>
+<li><a href="#_inband_tags">5.1.3. Inband Tags</a></li>
 </ul>
 </li>
 </ul>
@@ -487,6 +486,13 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_checkpoints">9.5. Checkpoints</a></li>
 </ul>
 </li>
+<li><a href="#_worked_example">10. Worked Example</a>
+<ul class="sectlevel2">
+<li><a href="#_the_object_header_chunk">10.1. The Object Header Chunk</a></li>
+<li><a href="#_the_data_chunk">10.2. The Data Chunk</a></li>
+<li><a href="#_scanning_the_image">10.3. Scanning the Image</a></li>
+</ul>
+</li>
 </ul>
 </div>
 </div>
@@ -495,14 +501,45 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <h2 id="_about">1. About</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>YAFFS (Yet Another Flash File System) is a log-structured file system for NAND flash hardware.</p>
+<p>YAFFS (Yet Another Flash File System) is a log-structured filesystem for NAND flash hardware.</p>
 </div>
 <div class="paragraph">
-<p>YAFFS1 was the first version of the format, designed for NAND chips of the time.</p>
+<p>This document describes the YAFFS2 on-media format in enough detail to implement an independent reader or image manipulation tool.
+It describes the format, not the runtime behavior (garbage collection, caching, wear handling) of the reference implementation.
+YAFFS1 tags and the checkpoint payload are deliberately out of scope.</p>
 </div>
 <div class="paragraph">
-<p>YAFFS2 (the format this document describes) was an evolution of the format to relax some hard coded assumptions about NAND geometries, and to become truly log-structured:
-YAFFS2 is strongly "write-once".</p>
+<p>YAFFS1 was the first version of the format, designed for the small-page NAND chips of the time.</p>
+</div>
+<div class="paragraph">
+<p>YAFFS2 (the format this document describes) was an evolution of the format to relax some hard coded assumptions about NAND geometries, and to become truly log-structured.
+The main differences:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>YAFFS1 assumes 512 byte chunks with 16 bytes of spare data.
+YAFFS2 supports arbitrary geometries, in particular the 2 KiB and larger pages of newer NAND chips.</p>
+</li>
+<li>
+<p>YAFFS1 marks stale chunks by going back and rewriting their spare data to set a "deleted" marker.
+Newer NAND chips do not tolerate rewriting a page in place, so YAFFS2 is strongly "write-once":
+a chunk is never modified between being written and its block being erased.</p>
+</li>
+<li>
+<p>Without a deletion marker, YAFFS2 must determine which chunks are current purely from write order.
+It introduces the <a href="#_sequence_number">sequence number</a> to recover that order, and <a href="#_shrink_headers">shrink headers</a> to keep truncated-away data from being resurrected.</p>
+</li>
+<li>
+<p>The tag formats differ.
+YAFFS1 tags are bit-packed (together with their ECC) into the 16 byte spare area, which limits chunk ids to 20 bits and therefore file sizes to about 512 MiB.
+YAFFS2 tags use full 32 bit fields and require a larger spare area (or <a href="#_params_inband_tags">inband tags</a>).</p>
+</li>
+<li>
+<p>YAFFS1 tags include a 2 bit serial number to disambiguate the two copies of a chunk that can coexist while it is being moved (e.g. by garbage collection).
+YAFFS2 does not need one, since write order already determines which copy is newer.</p>
+</li>
+</ul>
 </div>
 <div class="paragraph">
 <p>This document attempts to be precise in its usage of YAFFS/YAFFS1/YAFFS2.
@@ -551,7 +588,7 @@ This holds details such as the identifier for the parent directory, object name,
 When stored in an image, the spare data is stored immediately after the data section of the chunk.</p>
 </div>
 <div class="paragraph">
-<p>Spare Data is used to store tags associated with the chunk (usually, see <a href="#_params_inband_tags">Inband Tags</a> which can be used in case spare data is too small).</p>
+<p>Spare data is used to store tags associated with the chunk (usually, see <a href="#_params_inband_tags">Inband Tags</a> which can be used in case spare data is too small).</p>
 </div>
 </div>
 </div>
@@ -598,8 +635,7 @@ A block is the unit of erasure.</p>
 <div class="openblock">
 <div class="content">
 <div class="paragraph">
-<p>Stores information about the associated chunk.
-Stores e.g. the <code>obj_id</code> associated with the chunk, the chunk id within the object, the size of the data (if associated with a data chunk).
+<p>Metadata stored alongside each chunk: the <code>obj_id</code> of the object the chunk belongs to, the chunk id within the object, and (for data chunks) the populated size of the data.
 The exact data stored is different between YAFFS1 and YAFFS2.</p>
 </div>
 <div class="paragraph">
@@ -620,18 +656,18 @@ Since YAFFS2 never rewrites chunks in place, the sequence number is what allows 
 </div>
 <div class="paragraph">
 <p>Chunks within a block are written in order, from the first chunk to the last.
-This totally orders all chunks in the filesystem: a chunk is <em>newer</em> than another if its block has a higher sequence number, or if it is later within the same block (all chunks in a block share the same sequence number).
+This totally orders all chunks in the filesystem: a chunk is <em>newer</em> than another if its block has a higher sequence number, or if it is later within the same block.
 Whenever this document refers to the "latest" or "newest" version of something, it means the latest by this order.</p>
 </div>
 <div class="paragraph">
-<p>Normal sequence numbers are at least <code>0x00001000</code> and strictly below <code>0xEFFFFF00</code>.
+<p>Normal sequence numbers are at least <code>0x1000</code> and strictly below <code>0xEFFFFF00</code>.
 Values outside this range are special:</p>
 </div>
 <div class="hdlist">
 <table>
 <tr>
 <td class="hdlist1">
-<code>0x00000021</code>
+<code>0x21</code>
 </td>
 <td class="hdlist2">
 <p>The block holds <a href="#_checkpoints">checkpoint data</a>, not regular chunks.</p>
@@ -670,7 +706,7 @@ When a block fails and the driver-level bad block marking also fails, the block 
 <p>A YAFFS filesystem is simply a collection of blocks.
 There is no overall metadata or header.
 Because YAFFS is a log-structured filesystem, multiple versions of the same chunks can appear.
-The latest version of each chunk wins, and all earlier versions are ignored (see <a href="#_sequence_number">Sequence Number</a> for how chunks are ordered).</p>
+The latest version of each chunk wins, and all earlier versions are ignored (see <a href="#_sequence_number">sequence number</a> for how chunks are ordered).</p>
 </div>
 <div class="sect2">
 <h3 id="_image_layout">3.1. Image Layout</h3>
@@ -722,9 +758,14 @@ Because there is no filesystem-level metadata, the reader of a YAFFS filesystem 
 If not configured with <a href="#_params_inband_tags">Inband Tags</a>, then this whole area will be used to store data and the tags will be stored in the spare area.
 If <a href="#_params_inband_tags">Inband Tags</a> is enabled then the end of this area will be used to store tags and the rest will be used to store data.</p>
 </dd>
+<dt class="hdlist1">Data Bytes Per Chunk</dt>
+<dd>
+<p>The number of bytes of the data area available to store data, called <code>data_bytes_per_chunk</code> in formulas throughout this document.
+Not an independent parameter: it is equal to Total Bytes Per Chunk, or Total Bytes Per Chunk minus 16 when <a href="#_params_inband_tags">Inband Tags</a> are enabled.</p>
+</dd>
 <dt class="hdlist1">Spare Bytes Per Chunk</dt>
 <dd>
-<p>The number of bytes available for Spare Data out of band, associated with each chunk.</p>
+<p>The number of bytes available for spare data out of band, associated with each chunk.</p>
 </dd>
 <dt class="hdlist1">Chunks Per Block</dt>
 <dd>
@@ -732,7 +773,7 @@ If <a href="#_params_inband_tags">Inband Tags</a> is enabled then the end of thi
 </dd>
 <dt class="hdlist1"><a id="_params_inband_tags"></a>Inband Tags</dt>
 <dd>
-<p>Flag indicating whether tags should be stored in the data area rather than in the Spare Data.
+<p>Flag indicating whether tags should be stored in the data area rather than in the spare data.
 See <a href="#_inband_tags">Inband Tags</a> for details.</p>
 </dd>
 <dt class="hdlist1"><a id="_params_tag_ecc"></a>Tag ECC</dt>
@@ -753,14 +794,20 @@ A reader can also detect summaries by their reserved object id (see <a href="#_s
 <div class="sect1">
 <h2 id="_tags_format">5. Tags Format</h2>
 <div class="sectionbody">
-<div class="sect2">
-<h3 id="_yaffs1">5.1. YAFFS1</h3>
-<div class="paragraph">
-<p>This document is currently focused on YAFFS2, and does not document YAFFS1 fully.</p>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+Only the YAFFS2 tag format is described; YAFFS1 tags are out of scope for this document.
+</td>
+</tr>
+</table>
 </div>
-</div>
 <div class="sect2">
-<h3 id="_yaffs2">5.2. YAFFS2</h3>
+<h3 id="_yaffs2">5.1. YAFFS2</h3>
 <table class="tableblock frame-none grid-none stretch">
 <colgroup>
 <col style="width: 11.7647%;">
@@ -802,7 +849,7 @@ Should be the same for all (written) chunks in a block.</p>
 <td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
 <p>Identifies where in the file this chunk belongs.
 <code>chunk_id==0</code> signifies this chunk is an <a href="#_object_header">Object Header</a>.
-<code>chunk_id==1</code> signifies this is the first chunk in the file (ie. At file offset 0), <code>chunk_id==2</code> is the next chunk and so on.</p>
+<code>chunk_id==1</code> signifies this is the first chunk in the file (i.e. at file offset 0), <code>chunk_id==2</code> is the next chunk and so on.</p>
 </div>
 <div class="paragraph">
 <p>If the most significant bit is set, this chunk is an object header whose tags carry <a href="#_extra_tag_info">Extra Tag Info</a>, and the rest of the field is interpreted differently.</p>
@@ -812,14 +859,14 @@ Should be the same for all (written) chunks in a block.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">n_bytes</p></td>
 <td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
-<p>The populated size of this Data Chunk.
-If this is not a Data Chunk, the value is ignored, unless <a href="#_extra_tag_info">Extra Tag Info</a> is present.</p>
+<p>The populated size of this data chunk.
+If this is not a data chunk, the value is ignored, unless <a href="#_extra_tag_info">Extra Tag Info</a> is present.</p>
 </div></div></td>
 </tr>
 </tbody>
 </table>
 <div class="sect3">
-<h4 id="_extra_tag_info">5.2.1. Extra Tag Info</h4>
+<h4 id="_extra_tag_info">5.1.1. Extra Tag Info</h4>
 <div class="paragraph">
 <p>The tags of an object header chunk may duplicate key fields of the <a href="#_object_header">Object Header</a>, so that a scanner can reconstruct the directory tree from tags alone, without reading the data area of most object header chunks (see <a href="#_scanning">Reading a YAFFS2 Image</a>).</p>
 </div>
@@ -827,7 +874,7 @@ If this is not a Data Chunk, the value is ignored, unless <a href="#_extra_tag_i
 <p>Extra tag info is present if and only if the most significant bit of the <code>chunk_id</code> field is set (<code>chunk_id &amp; 0x80000000 != 0</code>).</p>
 </div>
 <div class="paragraph">
-<p>Extra tag info should only be present on <a href="#_object_header">Object Header</a> chunks, and must not be used if the object is a file whose size in bytes cannot fit in 31 bits.
+<p>Extra tag info should only be present on <a href="#_object_header">object header</a> chunks, and must not be used if the object is a file whose size in bytes cannot fit in 31 bits.
 When present, the tag fields are reinterpreted as follows:</p>
 </div>
 <div class="dlist">
@@ -929,10 +976,23 @@ Otherwise
 </div>
 </div>
 <div class="sect3">
-<h4 id="_tag_ecc">5.2.2. Tag ECC</h4>
+<h4 id="_tag_ecc">5.1.2. Tag ECC</h4>
 <div class="paragraph">
 <p>If <a href="#_params_tag_ecc">Tag ECC</a> is enabled (and <a href="#_params_inband_tags">Inband Tags</a> are <em>not</em> enabled), the tags are immediately followed by ECC information.
-The ECC implementation is based on the algorithm used in SmartMedia.</p>
+The ECC is computed over the 16 bytes of the tags structure, and is based on the algorithm used in SmartMedia.</p>
+</div>
+<div class="paragraph">
+<p>To compute the ECC, start with all three parity fields zeroed, then for each byte of the tags structure at index <code>i</code> (0 to 15):</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>XOR the byte&#8217;s six column parities (defined under <code>col_parity</code> below) into <code>col_parity</code>.</p>
+</li>
+<li>
+<p>If the byte has an odd number of bits set, XOR <code>i</code> into <code>line_parity</code>, and XOR <code>~i</code> (the bitwise NOT of the 32 bit index) into <code>line_parity_inv</code>.</p>
+</li>
+</ul>
 </div>
 <table class="tableblock frame-none grid-none stretch">
 <colgroup>
@@ -952,7 +1012,9 @@ The ECC implementation is based on the algorithm used in SmartMedia.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock">u8</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">col_parity</p></td>
 <td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
-<p>The 6 bits of column parity information:</p>
+<p>The accumulated column parity of all 16 tag bytes.
+Only 6 bits are used; bits 6 and 7 are always 0.
+Each bit is the XOR of a group of bits of the byte value:</p>
 </div>
 <div class="hdlist">
 <table>
@@ -1008,7 +1070,7 @@ The ECC implementation is based on the algorithm used in SmartMedia.</p>
 </div></div></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">[u8; 3]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">u8[3]</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">padding</p></td>
 <td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
 <p>Unused padding bytes</p>
@@ -1018,23 +1080,23 @@ The ECC implementation is based on the algorithm used in SmartMedia.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">line_parity</p></td>
 <td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
-<p>The XOR of <em>indexes</em> with an odd number of bits set in the byte.</p>
+<p>The XOR of the indexes of all tag bytes with an odd number of bits set.</p>
 </div></div></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">line_parity_inv</p></td>
 <td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
-<p>The XOR of the bitwise inverse of <em>indexes</em> with an odd number of bits set in the byte.</p>
+<p>The XOR of the inverted indexes (<code>~i</code>) of all tag bytes with an odd number of bits set.</p>
 </div></div></td>
 </tr>
 </tbody>
 </table>
 </div>
 <div class="sect3">
-<h4 id="_inband_tags">5.2.3. Inband Tags</h4>
+<h4 id="_inband_tags">5.1.3. Inband Tags</h4>
 <div class="paragraph">
-<p>If <a href="#_params_inband_tags">Inband Tags</a> is enabled, the tags are stored at the end of the chunk&#8217;s data area instead of in the spare data:</p>
+<p>If <a href="#_params_inband_tags">Inband Tags</a> is enabled, the tags are stored at the end of the chunk&#8217;s data area instead of in the spare data, shrinking the space available for data (as noted in <a href="#_parameters">Parameters</a>):</p>
 </div>
 <div class="literalblock">
 <div class="content">
@@ -1091,7 +1153,7 @@ Readers must take the shadow and shrink information from the <code>inband_</code
 </tr>
 <tr>
 <td class="tableblock halign-right valign-top"><p class="tableblock">2</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Lost + Found</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Lost+Found</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">A directory collecting chunks whose object cannot be properly reconstructed.</p></td>
 </tr>
 <tr>
@@ -1112,7 +1174,7 @@ Readers must take the shadow and shrink information from the <code>inband_</code
 </tbody>
 </table>
 <div class="paragraph">
-<p>The pseudo-directories (ids 1 to 4) exist implicitly and usually have no object header of their own.
+<p>These built-in objects (ids 1 to 4) exist implicitly and usually have no object header of their own.
 However, an object header <em>may</em> appear for the root or lost+found directories (for example, to record permissions or extended attributes on the root directory).
 Object headers with ids 3, 4 or 0x10 should never describe real objects.</p>
 </div>
@@ -1122,7 +1184,7 @@ It only appears as a "no object" marker: an object header written for the root d
 Readers should ignore the <code>parent_obj_id</code> of headers for the root and lost+found directories.</p>
 </div>
 <div class="paragraph">
-<p>Normal objects use ids from 256 up to <code>0x3FFFF</code>:
+<p>Normal objects use ids from 256 (<code>0x100</code>) up to <code>0x3FFFF</code>:
 the entire range below 256 is reserved for special ids, and object ids are limited to 18 bits (see <a href="#_object_header">Object Header</a>).</p>
 </div>
 <div class="admonitionblock note">
@@ -1146,7 +1208,7 @@ A reader that does not understand summaries reconstructs a stray headerless obje
 <div class="paragraph">
 <p>An object header is a chunk describing an object, marked by <code>chunk_id == 0</code> in its tags.
 A new object header is written every time an object is created, renamed, resized, or otherwise has its metadata changed.
-Many object headers for the same object id can be present in the filesystem; only the latest one (as ordered by <a href="#_sequence_number">Sequence Number</a>) is current, and all older ones are stale.</p>
+Many object headers for the same object id can be present in the filesystem; only the latest one (as ordered by <a href="#_sequence_number">sequence number</a>) is current, and all older ones are stale.</p>
 </div>
 <div class="paragraph">
 <p>The data area of an object header chunk contains the following 512 byte structure.
@@ -1503,13 +1565,30 @@ Current reference writers store the actual high bits; <code>0xFFFFFFFF</code> is
 <td class="tableblock halign-left valign-top"><p class="tableblock">u8[]</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">value</p></td>
 <td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
-<p>The attribute value, filling the rest of the record (<code>size</code> minus 4 minus the name bytes).</p>
+<p>The attribute value, filling the rest of the record: <code>size</code> minus 4, minus the name and its null terminator.</p>
 </div></div></td>
 </tr>
 </tbody>
 </table>
 <div class="paragraph">
-<p>The list ends when the next record&#8217;s <code>size</code> field is not a plausible record size: less than or equal to 0 (<code>0x00000000</code>, or <code>0xFFFFFFFF</code> from the erased fill), or reaching the end of the area or beyond (a record must end strictly before the end of the area to be read).</p>
+<p>The list ends at the first position where a record cannot be read:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Fewer than 4 bytes remain in the area, leaving no room for a <code>size</code> field.</p>
+</li>
+<li>
+<p><code>size</code> is less than or equal to 0 (<code>0x00000000</code>, or <code>0xFFFFFFFF</code> from the erased fill).</p>
+</li>
+<li>
+<p>The record would extend to or beyond the end of the area.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The last condition is strict: a record ending exactly at the last byte of the area is not readable, and also ends the list.
+Writers must therefore never write a record that ends exactly at the end of the area.</p>
 </div>
 <div class="paragraph">
 <p>Because a new object header is written whenever an object changes, the extended attributes are rewritten with every header; there is no separate versioning for them.</p>
@@ -1672,7 +1751,7 @@ All chunks for the same pair encountered later in the scan are stale and must be
 <p>The same rule applies to object headers, which are the <code>(obj_id, 0)</code> pair (headers with <a href="#_extra_tag_info">Extra Tag Info</a> store their object id in the low bits of <code>obj_id</code> and have an implicit chunk id of 0).</p>
 </div>
 <div class="paragraph">
-<p>This scan order visits chunks exactly newest to oldest, as ordered by <a href="#_sequence_number">Sequence Number</a>.</p>
+<p>This scan order visits chunks exactly newest to oldest, as ordered by <a href="#_sequence_number">sequence number</a>.</p>
 </div>
 <div class="sect2">
 <h3 id="_block_pre_scan">9.1. Block Pre-Scan</h3>
@@ -1750,6 +1829,12 @@ Once a header is seen (the header seen first is the newest one), its <a href="#_
 <div class="paragraph">
 <p>Missing chunks are holes: any part of a file not covered by a current data chunk reads as zero bytes.
 A file can be larger than its last data chunk extends; truncating a file to a larger size, or writing after seeking past the end, produces this.</p>
+</div>
+<div class="paragraph">
+<p>A data chunk can also be partially populated (<code>n_bytes &lt; data_bytes_per_chunk</code>), and not only at the end of the file: writes only rewrite the chunks they touch, so a chunk written while the file was short stays partial even after later writes grow the file past it.
+Only the first <code>n_bytes</code> bytes of the chunk are file contents; the rest of the chunk&#8217;s range is a hole, and reads as zero bytes.
+Readers should not depend on the stored bytes beyond <code>n_bytes</code> being zero, and should treat that range as a hole.
+The kernel implementation, however, reads the stored bytes directly, so writers must fill the data area beyond <code>n_bytes</code> with zero bytes.</p>
 </div>
 </div>
 <div class="sect2">
@@ -1887,10 +1972,180 @@ The checkpoint is invalidated (its blocks erased) as soon as the filesystem is w
 </div>
 </div>
 </div>
+<div class="sect1">
+<h2 id="_worked_example">10. Worked Example</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The image dissected below is a complete YAFFS2 filesystem containing a single 15 byte file, <code>hello.txt</code>, in the root directory.
+It was generated by <code>mkyaffs2image</code>, the image creation tool shipped with the reference implementation.</p>
+</div>
+<div class="paragraph">
+<p>The geometry is 2048 data bytes and 64 spare bytes per chunk, 64 chunks per block (so the whole image is a single block), with <a href="#_params_tag_ecc">tag ECC</a> enabled and inband tags disabled.
+In the image file, each 2048 byte data area is followed immediately by its 64 byte spare data area, so chunk <code>n</code> starts at image offset <code>n * 2112</code>.</p>
+</div>
+<div class="paragraph">
+<p>Only two chunks are written: an object header chunk for the file, followed by its single data chunk.
+Every other byte of the image, including the unused remainder of each written chunk&#8217;s data and spare areas, is erased fill (<code>0xFF</code>).</p>
+</div>
+<div class="sect2">
+<h3 id="_the_object_header_chunk">10.1. The Object Header Chunk</h3>
+<div class="paragraph">
+<p>The chunk&#8217;s tags, stored in the first 16 bytes of its spare data area (image offset 2048):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>00 10 00 00    seq_num  = 0x1000, the lowest normal sequence number
+01 01 00 00    obj_id   = 257 (0x101), a normal object id
+00 00 00 00    chunk_id = 0: this chunk is an object header
+ff ff 00 00    n_bytes  = 0xFFFF, ignored (not a data chunk)</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This writer does not use <a href="#_extra_tag_info">Extra Tag Info</a>: the most significant bit of <code>chunk_id</code> is clear, and the object&#8217;s type and parent are stored only in the header structure itself.</p>
+</div>
+<div class="paragraph">
+<p>The tags are followed by the 12 byte <a href="#_tag_ecc">tag ECC</a>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>25             col_parity
+00 00 00       padding
+00 00 00 00    line_parity
+ff ff ff ff    line_parity_inv</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Three tag bytes have an odd number of bits set: the <code>0x10</code> at index 1 and the two <code>0x01</code> bytes at indexes 4 and 5.
+<code>line_parity</code> is therefore <code>1 ^ 4 ^ 5 = 0</code>, and <code>line_parity_inv</code> is <code>~1 ^ ~4 ^ ~5 = 0xFFFFFFFF</code>.</p>
+</div>
+<div class="paragraph">
+<p>The data area of the chunk (image offset 0) begins with the 512 byte <a href="#_object_header">Object Header</a> structure:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>0x000  01 00 00 00    type = 1, Regular File
+0x004  01 00 00 00    parent_obj_id = 1, the root directory
+0x008  ff ff          checksum, obsolete
+0x00a  68 65 6c 6c    name = "hello.txt", null-terminated
+       6f 2e 74 78    (this writer zero fills the rest of
+       74 00 00 ...    the 256 byte field)
+0x10a  ff ff          padding
+0x10c  a4 81 00 00    yst_mode = 0x81A4: regular file, rw-r--r--
+0x110  f5 01 00 00    yst_uid = 501
+0x114  00 00 00 00    yst_gid = 0
+0x118  00 b9 55 69    yst_atime = 0x6955B900, 2026-01-01T00:00:00Z
+0x11c  00 b9 55 69    yst_mtime = 0x6955B900
+0x120  ab 40 51 6a    yst_ctime = 0x6A5140AB, when the image was generated
+0x124  0f 00 00 00    file_size_low = 15
+0x128  ff ff ff ff    equiv_id: unused, not a hard link
+0x12c  ff (x 160)     alias: unused, not a symbolic link
+0x1cc  00 00 00 00    yst_rdev = 0
+0x1d0  ff (x 8)       win_ctime: each high half is 0xFFFFFFFF,
+0x1d8  ff (x 8)       win_atime:   so no 64 bit timestamps are stored
+0x1e0  ff (x 8)       win_mtime:   and readers use the yst_ values
+0x1e8  ff ff ff ff    inband_shadowed_obj_id: unused, inband tags off
+0x1ec  ff ff ff ff    inband_is_shrink: unused, inband tags off
+0x1f0  00 00 00 00    file_size_high = 0 (0xFFFFFFFF would also be valid)
+0x1f4  ff ff ff ff    reserved
+0x1f8  ff ff ff ff    shadows_obj = -1: does not shadow an object
+0x1fc  ff ff ff ff    is_shrink (see warning below)</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The rest of the data area (offsets 0x200 to 0x7FF) is <code>0xFF</code>: the file has no extended attributes.</p>
+</div>
+<div class="admonitionblock warning">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Warning</div>
+</td>
+<td class="content">
+This writer leaves <code>is_shrink</code> as erased fill instead of storing 0.
+Readers take any non-zero value as marking a <a href="#_shrink_headers">shrink header</a>, which happens to be harmless here: the implied shrink size is the file&#8217;s own size.
+Writers should store an explicit 0.
+</td>
+</tr>
+</table>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_the_data_chunk">10.2. The Data Chunk</h3>
+<div class="paragraph">
+<p>The tags of the second chunk (image offset 2112 + 2048 = 4160):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>00 10 00 00    seq_num  = 0x1000, same block as the header chunk
+01 01 00 00    obj_id   = 257: the same object
+01 00 00 00    chunk_id = 1: the first data chunk, file offset 0
+0f 00 00 00    n_bytes  = 15</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>followed by its tag ECC:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>30             col_parity
+00 00 00       padding
+08 00 00 00    line_parity
+08 00 00 00    line_parity_inv</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The odd-parity tag bytes are at indexes 1, 4, 5 and 8, so <code>line_parity = 1 ^ 4 ^ 5 ^ 8 = 8</code>.
+With an even number of contributing indexes the inversions cancel out, so <code>line_parity_inv</code> has the same value.</p>
+</div>
+<div class="paragraph">
+<p>The data area (image offset 2112) begins with the file contents:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>48 65 6c 6c 6f 2c 20 59    Hello, Y
+41 46 46 53 32 21 0a       AFFS2!.</pre>
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+The remaining 2033 bytes of the data area are <code>0xFF</code> erased fill, violating the zero fill beyond <code>n_bytes</code> required by <a href="#_scan_data_chunks">Data Chunks</a>.
+This is safe because <code>mkyaffs2image</code> never writes a file that extends past the populated bytes of its chunks, so the fill always lies beyond the file size and is never read.
+</td>
+</tr>
+</table>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_scanning_the_image">10.3. Scanning the Image</h3>
+<div class="paragraph">
+<p>A backwards scan of this image finds one data block, with sequence number <code>0x1000</code>, and processes its two chunks from last to first:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>The data chunk is seen first.
+No object header for object 257 has been seen yet, so the file size is estimated as <code>offset 0 + n_bytes 15 = 15</code> bytes.</p>
+</li>
+<li>
+<p>The object header is seen next, providing the name, the metadata, and the authoritative file size.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>The result is a root directory containing the single 15 byte file <code>hello.txt</code>.</p>
+</div>
+</div>
+</div>
+</div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-07-08 01:44:32 -0400
+Last updated 2026-07-10 16:08:06 -0400
 </div>
 </div>
 </body>
