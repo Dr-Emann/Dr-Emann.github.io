@@ -1671,6 +1671,11 @@ Readers have an easier option: summary chunks identify themselves by the reserve
 The sequence number is not duplicated, since it is the same for the whole block.</p>
 </div>
 <div class="paragraph">
+<p>Only chunks that were actually written have their tags recorded.
+A chunk the writer skipped over (for example, because it failed a pre-write erased check) leaves its entry all-zero.
+Since 0 is not a valid object id, readers can recognize such entries by their <code>obj_id</code>, and must fall back to reading the chunk&#8217;s own tags from its spare area.</p>
+</div>
+<div class="paragraph">
 <p>This array is written to the reserved chunks (starting at chunk index <code>chunks_per_summary</code>), split into pieces of at most <code>data_bytes_per_chunk - 16</code> bytes.
 The data area of each summary chunk starts with the following 16 byte header, followed by the next piece of the array:</p>
 </div>
@@ -1765,7 +1770,7 @@ All chunks for the same pair encountered later in the scan are stale and must be
 <div class="ulist">
 <ul>
 <li>
-<p>If the tags are unwritten (all <code>0xFF</code>), the block is empty (or is the block currently being written to; see below).</p>
+<p>If the tags are unwritten (the sequence number is <code>0xFFFFFFFF</code>), the block is empty (or is the block currently being written to; see below).</p>
 </li>
 <li>
 <p>If the sequence number is <code>0x21</code>, the block holds <a href="#_checkpoints">checkpoint data</a> and takes no part in scanning.</p>
@@ -1787,7 +1792,8 @@ Any sequence number outside the normal range (at least <code>0x1000</code> and b
 <div class="sect2">
 <h3 id="_scanning_a_block">9.2. Scanning a Block</h3>
 <div class="paragraph">
-<p>If <a href="#_block_summaries">Block Summaries</a> are in use, first try to read and validate the block&#8217;s summary; on success, the tags of all data chunks come from the summary and the spare areas need not be read at all.</p>
+<p>If <a href="#_block_summaries">Block Summaries</a> are in use, first try to read and validate the block&#8217;s summary; on success, the tags of the data chunks come from the summary instead of their spare areas.
+The exception is all-zero summary entries, which record nothing about their chunk: the tags of such a chunk must still be read from its spare area (see <a href="#_block_summaries">Block Summaries</a>).</p>
 </div>
 <div class="paragraph">
 <p>Then, for each chunk from the last data chunk down to chunk 0, read its tags and:</p>
@@ -1826,7 +1832,8 @@ Chunks tagged with the reserved summary object id (<code>0x10</code>) are also i
 </li>
 <li>
 <p>Until an object header for the object has been seen, the file size is estimated as the maximum of <code>offset + n_bytes</code> over its data chunks.
-Once a header is seen (the header seen first is the newest one), its <a href="#_file_size">file size</a> takes precedence.</p>
+When the first (newest) header is seen, the file size becomes the larger of the estimate so far and the header&#8217;s <a href="#_file_size">file size</a>; data chunks encountered after that (all older than the header) no longer affect the size.
+The estimate can validly exceed the header&#8217;s size: a new header is only written on events like close or flush, not on every write, so the newest data chunks of a file that was being written when power was lost extend past the size recorded in its newest header.</p>
 </li>
 </ul>
 </div>
@@ -2149,7 +2156,7 @@ No object header for object 257 has been seen yet, so the file size is estimated
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-07-11 01:43:59 -0400
+Last updated 2026-07-12 18:08:36 -0400
 </div>
 </div>
 </body>

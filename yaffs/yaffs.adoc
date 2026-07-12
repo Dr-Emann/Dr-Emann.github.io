@@ -541,6 +541,10 @@ The summary data is an array of `chunks_per_summary` entries, one for each data-
 The values are exactly the stored tag values, i.e. the <<_extra_tag_info>> encoding applies.
 The sequence number is not duplicated, since it is the same for the whole block.
 
+Only chunks that were actually written have their tags recorded.
+A chunk the writer skipped over (for example, because it failed a pre-write erased check) leaves its entry all-zero.
+Since 0 is not a valid object id, readers can recognize such entries by their `obj_id`, and must fall back to reading the chunk's own tags from its spare area.
+
 This array is written to the reserved chunks (starting at chunk index `chunks_per_summary`), split into pieces of at most `data_bytes_per_chunk - 16` bytes.
 The data area of each summary chunk starts with the following 16 byte header, followed by the next piece of the array:
 
@@ -584,7 +588,7 @@ This scan order visits chunks exactly newest to oldest, as ordered by <<_sequenc
 
 First, read the tags of the _first_ chunk of every block:
 
-- If the tags are unwritten (all `0xFF`), the block is empty (or is the block currently being written to; see below).
+- If the tags are unwritten (the sequence number is `0xFFFFFFFF`), the block is empty (or is the block currently being written to; see below).
 - If the sequence number is `0x21`, the block holds <<_checkpoints,checkpoint data>> and takes no part in scanning.
 - If the sequence number is `0xFFFF0000`, the block was retired as bad and takes no part in scanning.
 - Otherwise the block contains data, and the first chunk's sequence number is the block's sequence number.
@@ -595,7 +599,8 @@ Then sort the data blocks by sequence number and scan them in decreasing order.
 
 === Scanning a Block
 
-If <<_block_summaries>> are in use, first try to read and validate the block's summary; on success, the tags of all data chunks come from the summary and the spare areas need not be read at all.
+If <<_block_summaries>> are in use, first try to read and validate the block's summary; on success, the tags of the data chunks come from the summary instead of their spare areas.
+The exception is all-zero summary entries, which record nothing about their chunk: the tags of such a chunk must still be read from its spare area (see <<_block_summaries>>).
 
 Then, for each chunk from the last data chunk down to chunk 0, read its tags and:
 
@@ -614,7 +619,8 @@ A data chunk with id `n` holds the file's bytes starting at offset `(n - 1) * da
 - If a chunk with the same `(obj_id, chunk_id)` was already seen, this chunk is stale and must be ignored.
 - If the chunk's start offset lies at or beyond the object's current _shrink size_ (see <<_shrink_headers>>), the chunk is stale data from before a truncation and must be ignored.
 - Until an object header for the object has been seen, the file size is estimated as the maximum of `offset + n_bytes` over its data chunks.
-Once a header is seen (the header seen first is the newest one), its <<_file_size,file size>> takes precedence.
+When the first (newest) header is seen, the file size becomes the larger of the estimate so far and the header's <<_file_size,file size>>; data chunks encountered after that (all older than the header) no longer affect the size.
+The estimate can validly exceed the header's size: a new header is only written on events like close or flush, not on every write, so the newest data chunks of a file that was being written when power was lost extend past the size recorded in its newest header.
 
 Missing chunks are holes: any part of a file not covered by a current data chunk reads as zero bytes.
 A file can be larger than its last data chunk extends; truncating a file to a larger size, or writing after seeking past the end, produces this.
