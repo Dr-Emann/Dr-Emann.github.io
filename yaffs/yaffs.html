@@ -1306,42 +1306,42 @@ No longer used, stored as <code>0xFFFF</code>.</p>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">yst_mode</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">mode</p></td>
 <td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
 <p>Unix permissions and file type bits, as in the <code>st_mode</code> field of <code>struct stat</code>.</p>
 </div></div></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">yst_uid</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">uid</p></td>
 <td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
 <p>User ID of the owner.</p>
 </div></div></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">yst_gid</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">gid</p></td>
 <td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
 <p>Group ID of the owner.</p>
 </div></div></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">yst_atime</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">atime</p></td>
 <td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
 <p>Nominal access time, as a 32 bit unix timestamp. Not updated by reads; see <a href="#_timestamps">Timestamps</a>.</p>
 </div></div></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">yst_mtime</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">mtime</p></td>
 <td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
 <p>Modification time, as a 32 bit unix timestamp. See <a href="#_timestamps">Timestamps</a>.</p>
 </div></div></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">yst_ctime</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">ctime</p></td>
 <td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
 <p>Change time, as a 32 bit unix timestamp. See <a href="#_timestamps">Timestamps</a>.</p>
 </div></div></td>
@@ -1371,31 +1371,32 @@ See <a href="#_file_size">File Size</a>.</p>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">u32</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">yst_rdev</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">rdev</p></td>
 <td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
 <p>Only used for special objects: the system specific device number, as in the <code>st_rdev</code> field of <code>struct stat</code>.</p>
 </div></div></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">u32[2]</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">win_ctime</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">ctime_64</p></td>
 <td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
-<p>Originally intended for WinCE timestamps, now also used to store 64 bit timestamps.
+<p>The change time as a 64 bit unix timestamp, split into two u32 values, low half first.
+Note that the 64 bit timestamps are stored in a different order than the 32 bit ones (change, access, modification).
 See <a href="#_timestamps">Timestamps</a>.</p>
 </div></div></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">u32[2]</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">win_atime</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">atime_64</p></td>
 <td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
-<p>See <code>win_ctime</code>.</p>
+<p>The access time, encoded as in <code>ctime_64</code>.</p>
 </div></div></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">u32[2]</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">win_mtime</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">mtime_64</p></td>
 <td class="tableblock halign-left valign-top"><div class="content"><div class="paragraph">
-<p>See <code>win_ctime</code>.</p>
+<p>The modification time, encoded as in <code>ctime_64</code>.</p>
 </div></div></td>
 </tr>
 <tr>
@@ -1475,21 +1476,24 @@ The requirement that object ids leave the top nibble clear follows from the <a h
 <div class="sect2">
 <h3 id="_timestamps">7.1. Timestamps</h3>
 <div class="paragraph">
-<p>Each of the three timestamps is stored twice: as a 32 bit unix timestamp in <code>yst_atime</code>/<code>yst_mtime</code>/<code>yst_ctime</code>, and as a 64 bit unix timestamp split across the two u32 values of the corresponding <code>win_</code> field (low half first).</p>
+<p>Each of the three timestamps is stored twice: as a 32 bit unix timestamp in <code>atime</code>/<code>mtime</code>/<code>ctime</code>, and as a 64 bit unix timestamp split across the two u32 values of the corresponding <code>_64</code> field (low half first).</p>
 </div>
 <div class="paragraph">
-<p>To read a timestamp, look at the second (high) u32 of the <code>win_</code> field:</p>
+<p>To read a timestamp, look at the second (high) u32 of the <code>_64</code> field:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>If it is <code>0xFFFFFFFF</code>, no 64 bit timestamp is stored; use the 32 bit <code>yst_</code> value.</p>
+<p>If it is <code>0xFFFFFFFF</code>, no 64 bit timestamp is stored; use the 32 bit value.</p>
 </li>
 <li>
-<p>Otherwise, the timestamp is <code>(win[1] &lt;&lt; 32) | win[0]</code>.
-Writers store the low 32 bits in the <code>yst_</code> field as well, so both representations agree.</p>
+<p>Otherwise, the timestamp is <code>(high &lt;&lt; 32) | low</code>.
+Writers store the low 32 bits in the 32 bit field as well, so both representations agree.</p>
 </li>
 </ul>
+</div>
+<div class="paragraph">
+<p>The 64 bit fields were a later addition (originally holding WinCE timestamps), which is why they are stored as pairs of u32 values, apart from the 32 bit fields and in a different order.</p>
 </div>
 <div class="paragraph">
 <p>Despite its name, the access time does not track reads.
@@ -2030,19 +2034,19 @@ ff ff ff ff    line_parity_inv</pre>
        6f 2e 74 78    (this writer zero fills the rest of
        74 00 00 ...    the 256 byte field)
 0x10a  ff ff          padding
-0x10c  a4 81 00 00    yst_mode = 0x81A4: regular file, rw-r--r--
-0x110  f5 01 00 00    yst_uid = 501
-0x114  00 00 00 00    yst_gid = 0
-0x118  00 b9 55 69    yst_atime = 0x6955B900, 2026-01-01T00:00:00Z
-0x11c  00 b9 55 69    yst_mtime = 0x6955B900
-0x120  ab 40 51 6a    yst_ctime = 0x6A5140AB, when the image was generated
+0x10c  a4 81 00 00    mode = 0x81A4: regular file, rw-r--r--
+0x110  f5 01 00 00    uid = 501
+0x114  00 00 00 00    gid = 0
+0x118  00 b9 55 69    atime = 0x6955B900, 2026-01-01T00:00:00Z
+0x11c  00 b9 55 69    mtime = 0x6955B900
+0x120  ab 40 51 6a    ctime = 0x6A5140AB, when the image was generated
 0x124  0f 00 00 00    file_size_low = 15
 0x128  ff ff ff ff    equiv_id: unused, not a hard link
 0x12c  ff (x 160)     alias: unused, not a symbolic link
-0x1cc  00 00 00 00    yst_rdev = 0
-0x1d0  ff (x 8)       win_ctime: each high half is 0xFFFFFFFF,
-0x1d8  ff (x 8)       win_atime:   so no 64 bit timestamps are stored
-0x1e0  ff (x 8)       win_mtime:   and readers use the yst_ values
+0x1cc  00 00 00 00    rdev = 0
+0x1d0  ff (x 8)       ctime_64: each high half is 0xFFFFFFFF, so no
+0x1d8  ff (x 8)       atime_64:   64 bit timestamps are stored, and
+0x1e0  ff (x 8)       mtime_64:   readers use the 32 bit values
 0x1e8  ff ff ff ff    inband_shadowed_obj_id: unused, inband tags off
 0x1ec  ff ff ff ff    inband_is_shrink: unused, inband tags off
 0x1f0  00 00 00 00    file_size_high = 0 (0xFFFFFFFF would also be valid)
@@ -2145,7 +2149,7 @@ No object header for object 257 has been seen yet, so the file size is estimated
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-07-10 16:08:06 -0400
+Last updated 2026-07-11 01:43:59 -0400
 </div>
 </div>
 </body>

@@ -381,15 +381,15 @@ The name of this object within its parent directory, null-terminated.
 
 | u8[2] | padding | Unused padding bytes.
 
-| u32 | yst_mode
+| u32 | mode
 |
 Unix permissions and file type bits, as in the `st_mode` field of `struct stat`.
 
-| u32 | yst_uid | User ID of the owner.
-| u32 | yst_gid | Group ID of the owner.
-| u32 | yst_atime | Nominal access time, as a 32 bit unix timestamp. Not updated by reads; see <<_timestamps>>.
-| u32 | yst_mtime | Modification time, as a 32 bit unix timestamp. See <<_timestamps>>.
-| u32 | yst_ctime | Change time, as a 32 bit unix timestamp. See <<_timestamps>>.
+| u32 | uid | User ID of the owner.
+| u32 | gid | Group ID of the owner.
+| u32 | atime | Nominal access time, as a 32 bit unix timestamp. Not updated by reads; see <<_timestamps>>.
+| u32 | mtime | Modification time, as a 32 bit unix timestamp. See <<_timestamps>>.
+| u32 | ctime | Change time, as a 32 bit unix timestamp. See <<_timestamps>>.
 
 | u32 | file_size_low
 |
@@ -405,17 +405,18 @@ Only used for hard links: the object id of the object this hard link is equivale
 |
 Only used for symbolic links: the target path, null-terminated.
 
-| u32 | yst_rdev
+| u32 | rdev
 |
 Only used for special objects: the system specific device number, as in the `st_rdev` field of `struct stat`.
 
-| u32[2] | win_ctime
+| u32[2] | ctime_64
 |
-Originally intended for WinCE timestamps, now also used to store 64 bit timestamps.
+The change time as a 64 bit unix timestamp, split into two u32 values, low half first.
+Note that the 64 bit timestamps are stored in a different order than the 32 bit ones (change, access, modification).
 See <<_timestamps>>.
 
-| u32[2] | win_atime | See `win_ctime`.
-| u32[2] | win_mtime | See `win_ctime`.
+| u32[2] | atime_64 | The access time, encoded as in `ctime_64`.
+| u32[2] | mtime_64 | The modification time, encoded as in `ctime_64`.
 
 | u32 | inband_shadowed_obj_id
 |
@@ -453,13 +454,15 @@ The requirement that object ids leave the top nibble clear follows from the <<_e
 [#_timestamps]
 === Timestamps
 
-Each of the three timestamps is stored twice: as a 32 bit unix timestamp in `yst_atime`/`yst_mtime`/`yst_ctime`, and as a 64 bit unix timestamp split across the two u32 values of the corresponding `win_` field (low half first).
+Each of the three timestamps is stored twice: as a 32 bit unix timestamp in `atime`/`mtime`/`ctime`, and as a 64 bit unix timestamp split across the two u32 values of the corresponding `_64` field (low half first).
 
-To read a timestamp, look at the second (high) u32 of the `win_` field:
+To read a timestamp, look at the second (high) u32 of the `_64` field:
 
-- If it is `0xFFFFFFFF`, no 64 bit timestamp is stored; use the 32 bit `yst_` value.
-- Otherwise, the timestamp is `(win[1] << 32) | win[0]`.
-Writers store the low 32 bits in the `yst_` field as well, so both representations agree.
+- If it is `0xFFFFFFFF`, no 64 bit timestamp is stored; use the 32 bit value.
+- Otherwise, the timestamp is `(high << 32) | low`.
+Writers store the low 32 bits in the 32 bit field as well, so both representations agree.
+
+The 64 bit fields were a later addition (originally holding WinCE timestamps), which is why they are stored as pairs of u32 values, apart from the 32 bit fields and in a different order.
 
 Despite its name, the access time does not track reads.
 Timestamps are only stored in object headers, and updating the access time on every read would mean writing a new object header for every read: far too much writing (and erasing) for a write-once log.
@@ -734,19 +737,19 @@ The data area of the chunk (image offset 0) begins with the 512 byte <<_object_h
        6f 2e 74 78    (this writer zero fills the rest of
        74 00 00 ...    the 256 byte field)
 0x10a  ff ff          padding
-0x10c  a4 81 00 00    yst_mode = 0x81A4: regular file, rw-r--r--
-0x110  f5 01 00 00    yst_uid = 501
-0x114  00 00 00 00    yst_gid = 0
-0x118  00 b9 55 69    yst_atime = 0x6955B900, 2026-01-01T00:00:00Z
-0x11c  00 b9 55 69    yst_mtime = 0x6955B900
-0x120  ab 40 51 6a    yst_ctime = 0x6A5140AB, when the image was generated
+0x10c  a4 81 00 00    mode = 0x81A4: regular file, rw-r--r--
+0x110  f5 01 00 00    uid = 501
+0x114  00 00 00 00    gid = 0
+0x118  00 b9 55 69    atime = 0x6955B900, 2026-01-01T00:00:00Z
+0x11c  00 b9 55 69    mtime = 0x6955B900
+0x120  ab 40 51 6a    ctime = 0x6A5140AB, when the image was generated
 0x124  0f 00 00 00    file_size_low = 15
 0x128  ff ff ff ff    equiv_id: unused, not a hard link
 0x12c  ff (x 160)     alias: unused, not a symbolic link
-0x1cc  00 00 00 00    yst_rdev = 0
-0x1d0  ff (x 8)       win_ctime: each high half is 0xFFFFFFFF,
-0x1d8  ff (x 8)       win_atime:   so no 64 bit timestamps are stored
-0x1e0  ff (x 8)       win_mtime:   and readers use the yst_ values
+0x1cc  00 00 00 00    rdev = 0
+0x1d0  ff (x 8)       ctime_64: each high half is 0xFFFFFFFF, so no
+0x1d8  ff (x 8)       atime_64:   64 bit timestamps are stored, and
+0x1e0  ff (x 8)       mtime_64:   readers use the 32 bit values
 0x1e8  ff ff ff ff    inband_shadowed_obj_id: unused, inband tags off
 0x1ec  ff ff ff ff    inband_is_shrink: unused, inband tags off
 0x1f0  00 00 00 00    file_size_high = 0 (0xFFFFFFFF would also be valid)
